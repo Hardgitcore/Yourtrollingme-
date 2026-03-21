@@ -96,7 +96,7 @@ local args = {
 -- Logic
 local running = false
 local thread = nil
-local INTERVAL = 0.5
+local INTERVAL = 1
 
 local function startLoop()
     running = true
