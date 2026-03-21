@@ -1,0 +1,139 @@
+-- GUI Setup
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- Create ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "TerrainRemoverGui"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = playerGui
+
+-- Main Frame
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 220, 0, 130)
+frame.Position = UDim2.new(0.5, -110, 0.02, 0)
+frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+frame.BorderSizePixel = 0
+frame.Parent = screenGui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 8)
+corner.Parent = frame
+
+-- Title Label
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 30)
+title.Position = UDim2.new(0, 0, 0, 0)
+title.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.Text = "Terrain Remover"
+title.Font = Enum.Font.GothamBold
+title.TextSize = 14
+title.BorderSizePixel = 0
+title.Parent = frame
+
+local titleCorner = Instance.new("UICorner")
+titleCorner.CornerRadius = UDim.new(0, 8)
+titleCorner.Parent = title
+
+-- Status Label
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(1, -20, 0, 25)
+statusLabel.Position = UDim2.new(0, 10, 0, 38)
+statusLabel.BackgroundTransparency = 1
+statusLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+statusLabel.Text = "Status: Stopped"
+statusLabel.Font = Enum.Font.Gotham
+statusLabel.TextSize = 13
+statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+statusLabel.Parent = frame
+
+-- Countdown Label
+local countdownLabel = Instance.new("TextLabel")
+countdownLabel.Size = UDim2.new(1, -20, 0, 25)
+countdownLabel.Position = UDim2.new(0, 10, 0, 62)
+countdownLabel.BackgroundTransparency = 1
+countdownLabel.TextColor3 = Color3.fromRGB(100, 200, 255)
+countdownLabel.Text = "Next fire: --s"
+countdownLabel.Font = Enum.Font.GothamBold
+countdownLabel.TextSize = 13
+countdownLabel.TextXAlignment = Enum.TextXAlignment.Left
+countdownLabel.Parent = frame
+
+-- Toggle Button
+local button = Instance.new("TextButton")
+button.Size = UDim2.new(1, -20, 0, 30)
+button.Position = UDim2.new(0, 10, 0, 92)
+button.BackgroundColor3 = Color3.fromRGB(0, 170, 80)
+button.TextColor3 = Color3.fromRGB(255, 255, 255)
+button.Text = "Start"
+button.Font = Enum.Font.GothamBold
+button.TextSize = 14
+button.BorderSizePixel = 0
+button.Parent = frame
+
+local btnCorner = Instance.new("UICorner")
+btnCorner.CornerRadius = UDim.new(0, 6)
+btnCorner.Parent = button
+
+-- Remote reference
+local remote = ReplicatedStorage
+    :WaitForChild("rbxts_include")
+    :WaitForChild("node_modules")
+    :WaitForChild("@rbxts")
+    :WaitForChild("remo")
+    :WaitForChild("src")
+    :WaitForChild("container")
+    :WaitForChild("terrain.clientRemovedTerrain")
+
+local args = {
+    vector.create(38.15892791748047, -16.839773178100586, -219.25625610351562)
+}
+
+-- Logic
+local running = false
+local thread = nil
+local INTERVAL = 0.5
+
+local function startLoop()
+    running = true
+    button.Text = "Stop"
+    button.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    statusLabel.TextColor3 = Color3.fromRGB(100, 220, 100)
+    statusLabel.Text = "Status: Running"
+
+    thread = task.spawn(function()
+        while running do
+            remote:FireServer(unpack(args))
+            for i = INTERVAL, 1, -1 do
+                if not running then break end
+                countdownLabel.Text = "Next fire: " .. i .. "s"
+                task.wait(1)
+            end
+        end
+    end)
+end
+
+local function stopLoop()
+    running = false
+    if thread then
+        task.cancel(thread)
+        thread = nil
+    end
+    button.Text = "Start"
+    button.BackgroundColor3 = Color3.fromRGB(0, 170, 80)
+    statusLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+    statusLabel.Text = "Status: Stopped"
+    countdownLabel.Text = "Next fire: --s"
+end
+
+button.MouseButton1Click:Connect(function()
+    if running then
+        stopLoop()
+    else
+        startLoop()
+    end
+end)
