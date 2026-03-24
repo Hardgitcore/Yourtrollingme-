@@ -1,139 +1,419 @@
--- GUI Setup
-local Players = game:GetService("Players")
+-- ╔══════════════════════════════════════════╗
+-- ║       SPIN A PET  —  by yamyum           ║
+-- ╚══════════════════════════════════════════╝
+
+local Players       = game:GetService("Players")
+local TweenService  = game:GetService("TweenService")
+local RunService    = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local player = Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui   = LocalPlayer:WaitForChild("PlayerGui")
 
--- Create ScreenGui
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "TerrainRemoverGui"
-screenGui.ResetOnSpawn = false
-screenGui.Parent = playerGui
+-- ────────────────────────────────────────────
+--  CONFIG
+-- ────────────────────────────────────────────
+local SPIN_DELAY  = 0.2   -- seconds between each spin fire
+local AUTO_START  = false -- set true to begin spinning on load
 
--- Main Frame
-local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 220, 0, 130)
-frame.Position = UDim2.new(0.5, -110, 0.02, 0)
-frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-frame.BorderSizePixel = 0
-frame.Parent = screenGui
+-- ────────────────────────────────────────────
+--  SCREEN GUI
+-- ────────────────────────────────────────────
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name            = "SpinAPetGUI"
+ScreenGui.ResetOnSpawn    = false
+ScreenGui.ZIndexBehavior  = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent          = PlayerGui
 
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 8)
-corner.Parent = frame
+-- ── MAIN FRAME ──────────────────────────────
+local Frame = Instance.new("Frame")
+Frame.Name              = "MainFrame"
+Frame.Size              = UDim2.new(0, 280, 0, 340)
+Frame.Position          = UDim2.new(0.5, -140, 0.5, -170)
+Frame.BackgroundColor3  = Color3.fromRGB(15, 10, 30)
+Frame.BorderSizePixel   = 0
+Frame.ClipsDescendants  = true
+Frame.Parent            = ScreenGui
 
--- Title Label
-local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, 0, 0, 30)
-title.Position = UDim2.new(0, 0, 0, 0)
-title.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-title.TextColor3 = Color3.fromRGB(255, 255, 255)
-title.Text = "Terrain Remover"
-title.Font = Enum.Font.GothamBold
-title.TextSize = 14
-title.BorderSizePixel = 0
-title.Parent = frame
+-- rounded corners
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 20)
+UICorner.Parent = Frame
 
-local titleCorner = Instance.new("UICorner")
-titleCorner.CornerRadius = UDim.new(0, 8)
-titleCorner.Parent = title
+-- outer glow border
+local Stroke = Instance.new("UIStroke")
+Stroke.Color     = Color3.fromRGB(180, 80, 255)
+Stroke.Thickness = 2
+Stroke.Parent    = Frame
 
--- Status Label
-local statusLabel = Instance.new("TextLabel")
-statusLabel.Size = UDim2.new(1, -20, 0, 25)
-statusLabel.Position = UDim2.new(0, 10, 0, 38)
-statusLabel.BackgroundTransparency = 1
-statusLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
-statusLabel.Text = "Status: Stopped"
-statusLabel.Font = Enum.Font.Gotham
-statusLabel.TextSize = 13
-statusLabel.TextXAlignment = Enum.TextXAlignment.Left
-statusLabel.Parent = frame
+-- animated shimmer overlay
+local Shimmer = Instance.new("Frame")
+Shimmer.Name             = "Shimmer"
+Shimmer.Size             = UDim2.new(0, 80, 2, 0)
+Shimmer.Position         = UDim2.new(-0.4, 0, -0.5, 0)
+Shimmer.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+Shimmer.BackgroundTransparency = 0.88
+Shimmer.BorderSizePixel  = 0
+Shimmer.ZIndex           = 10
+Shimmer.Parent           = Frame
 
--- Countdown Label
-local countdownLabel = Instance.new("TextLabel")
-countdownLabel.Size = UDim2.new(1, -20, 0, 25)
-countdownLabel.Position = UDim2.new(0, 10, 0, 62)
-countdownLabel.BackgroundTransparency = 1
-countdownLabel.TextColor3 = Color3.fromRGB(100, 200, 255)
-countdownLabel.Text = "Next fire: --s"
-countdownLabel.Font = Enum.Font.GothamBold
-countdownLabel.TextSize = 13
-countdownLabel.TextXAlignment = Enum.TextXAlignment.Left
-countdownLabel.Parent = frame
+local ShimmerCorner = Instance.new("UICorner")
+ShimmerCorner.CornerRadius = UDim.new(0, 4)
+ShimmerCorner.Parent = Shimmer
 
--- Toggle Button
-local button = Instance.new("TextButton")
-button.Size = UDim2.new(1, -20, 0, 30)
-button.Position = UDim2.new(0, 10, 0, 92)
-button.BackgroundColor3 = Color3.fromRGB(0, 170, 80)
-button.TextColor3 = Color3.fromRGB(255, 255, 255)
-button.Text = "Start"
-button.Font = Enum.Font.GothamBold
-button.TextSize = 14
-button.BorderSizePixel = 0
-button.Parent = frame
+-- background gradient
+local BG = Instance.new("UIGradient")
+BG.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0,   Color3.fromRGB(22, 10, 48)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(38, 14, 72)),
+    ColorSequenceKeypoint.new(1,   Color3.fromRGB(15, 10, 30)),
+})
+BG.Rotation = 135
+BG.Parent   = Frame
 
-local btnCorner = Instance.new("UICorner")
-btnCorner.CornerRadius = UDim.new(0, 6)
-btnCorner.Parent = button
-
--- Remote reference
-local remote = ReplicatedStorage
-    :WaitForChild("rbxts_include")
-    :WaitForChild("node_modules")
-    :WaitForChild("@rbxts")
-    :WaitForChild("remo")
-    :WaitForChild("src")
-    :WaitForChild("container")
-    :WaitForChild("terrain.clientRemovedTerrain")
-
-local args = {
-    vector.create(38.15892791748047, -16.839773178100586, -219.25625610351562)
-}
-
--- Logic
-local running = false
-local thread = nil
-local INTERVAL = 1
-
-local function startLoop()
-    running = true
-    button.Text = "Stop"
-    button.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-    statusLabel.TextColor3 = Color3.fromRGB(100, 220, 100)
-    statusLabel.Text = "Status: Running"
-
-    thread = task.spawn(function()
-        while running do
-            remote:FireServer(unpack(args))
-            for i = INTERVAL, 1, -1 do
-                if not running then break end
-                countdownLabel.Text = "Next fire: " .. i .. "s"
-                task.wait(1)
-            end
+-- ── DRAGGABLE ────────────────────────────────
+do
+    local dragging, dragInput, dragStart, startPos
+    Frame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging  = true
+            dragStart = input.Position
+            startPos  = Frame.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+    Frame.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement then
+            dragInput = input
+        end
+    end)
+    game:GetService("UserInputService").InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            local delta = input.Position - dragStart
+            Frame.Position = UDim2.new(
+                startPos.X.Scale, startPos.X.Offset + delta.X,
+                startPos.Y.Scale, startPos.Y.Offset + delta.Y
+            )
         end
     end)
 end
 
-local function stopLoop()
-    running = false
-    if thread then
-        task.cancel(thread)
-        thread = nil
+-- ── PET EMOJI DISPLAY ────────────────────────
+local PetLabel = Instance.new("TextLabel")
+PetLabel.Size                  = UDim2.new(1, 0, 0, 80)
+PetLabel.Position              = UDim2.new(0, 0, 0, 18)
+PetLabel.BackgroundTransparency = 1
+PetLabel.Text                  = "🐾"
+PetLabel.TextSize              = 52
+PetLabel.Font                  = Enum.Font.GothamBold
+PetLabel.TextColor3            = Color3.fromRGB(255, 255, 255)
+PetLabel.ZIndex                = 5
+PetLabel.Parent                = Frame
+
+-- ── TITLE ────────────────────────────────────
+local Title = Instance.new("TextLabel")
+Title.Size                   = UDim2.new(1, -20, 0, 32)
+Title.Position               = UDim2.new(0, 10, 0, 100)
+Title.BackgroundTransparency = 1
+Title.Text                   = "SPIN A PET"
+Title.Font                   = Enum.Font.GothamBlack
+Title.TextSize               = 26
+Title.TextColor3             = Color3.fromRGB(255, 255, 255)
+Title.ZIndex                 = 5
+Title.Parent                 = Frame
+
+local TitleGrad = Instance.new("UIGradient")
+TitleGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0,   Color3.fromRGB(200, 120, 255)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 180, 255)),
+    ColorSequenceKeypoint.new(1,   Color3.fromRGB(130, 80, 255)),
+})
+TitleGrad.Rotation = 0
+TitleGrad.Parent   = Title
+
+-- ── CREDIT ───────────────────────────────────
+local Credit = Instance.new("TextLabel")
+Credit.Size                   = UDim2.new(1, -20, 0, 18)
+Credit.Position               = UDim2.new(0, 10, 0, 130)
+Credit.BackgroundTransparency = 1
+Credit.Text                   = "by yamyum"
+Credit.Font                   = Enum.Font.Gotham
+Credit.TextSize               = 13
+Credit.TextColor3             = Color3.fromRGB(180, 130, 255)
+Credit.ZIndex                 = 5
+Credit.Parent                 = Frame
+
+-- ── SPIN COUNT ───────────────────────────────
+local CountBG = Instance.new("Frame")
+CountBG.Size              = UDim2.new(1, -40, 0, 44)
+CountBG.Position          = UDim2.new(0, 20, 0, 162)
+CountBG.BackgroundColor3  = Color3.fromRGB(30, 15, 60)
+CountBG.BorderSizePixel   = 0
+CountBG.ZIndex            = 5
+CountBG.Parent            = Frame
+
+local CountCorner = Instance.new("UICorner")
+CountCorner.CornerRadius = UDim.new(0, 12)
+CountCorner.Parent = CountBG
+
+local CountStroke = Instance.new("UIStroke")
+CountStroke.Color     = Color3.fromRGB(100, 50, 180)
+CountStroke.Thickness = 1
+CountStroke.Parent    = CountBG
+
+local CountLabel = Instance.new("TextLabel")
+CountLabel.Size                   = UDim2.new(1, 0, 0.5, 0)
+CountLabel.Position               = UDim2.new(0, 0, 0, 2)
+CountLabel.BackgroundTransparency = 1
+CountLabel.Text                   = "SPINS"
+CountLabel.Font                   = Enum.Font.Gotham
+CountLabel.TextSize               = 10
+CountLabel.TextColor3             = Color3.fromRGB(160, 110, 220)
+CountLabel.ZIndex                 = 6
+CountLabel.Parent                 = CountBG
+
+local CountNum = Instance.new("TextLabel")
+CountNum.Size                   = UDim2.new(1, 0, 0.6, 0)
+CountNum.Position               = UDim2.new(0, 0, 0.38, 0)
+CountNum.BackgroundTransparency = 1
+CountNum.Text                   = "0"
+CountNum.Font                   = Enum.Font.GothamBlack
+CountNum.TextSize               = 22
+CountNum.TextColor3             = Color3.fromRGB(255, 255, 255)
+CountNum.ZIndex                 = 6
+CountNum.Parent                 = CountBG
+
+-- ── STATUS BAR ───────────────────────────────
+local StatusBG = Instance.new("Frame")
+StatusBG.Size              = UDim2.new(1, -40, 0, 32)
+StatusBG.Position          = UDim2.new(0, 20, 0, 218)
+StatusBG.BackgroundColor3  = Color3.fromRGB(20, 12, 45)
+StatusBG.BorderSizePixel   = 0
+StatusBG.ZIndex            = 5
+StatusBG.Parent            = Frame
+
+local StatusCorner = Instance.new("UICorner")
+StatusCorner.CornerRadius = UDim.new(0, 10)
+StatusCorner.Parent = StatusBG
+
+local StatusDot = Instance.new("Frame")
+StatusDot.Size             = UDim2.new(0, 10, 0, 10)
+StatusDot.Position         = UDim2.new(0, 10, 0.5, -5)
+StatusDot.BackgroundColor3 = Color3.fromRGB(80, 80, 100)
+StatusDot.BorderSizePixel  = 0
+StatusDot.ZIndex           = 6
+StatusDot.Parent           = StatusBG
+
+local StatusDotCorner = Instance.new("UICorner")
+StatusDotCorner.CornerRadius = UDim.new(1, 0)
+StatusDotCorner.Parent = StatusDot
+
+local StatusText = Instance.new("TextLabel")
+StatusText.Size                   = UDim2.new(1, -30, 1, 0)
+StatusText.Position               = UDim2.new(0, 26, 0, 0)
+StatusText.BackgroundTransparency = 1
+StatusText.Text                   = "Idle"
+StatusText.Font                   = Enum.Font.Gotham
+StatusText.TextSize               = 13
+StatusText.TextXAlignment         = Enum.TextXAlignment.Left
+StatusText.TextColor3             = Color3.fromRGB(160, 150, 190)
+StatusText.ZIndex                 = 6
+StatusText.Parent                 = StatusBG
+
+-- ── TOGGLE BUTTON ────────────────────────────
+local ToggleBtn = Instance.new("TextButton")
+ToggleBtn.Size              = UDim2.new(1, -40, 0, 48)
+ToggleBtn.Position          = UDim2.new(0, 20, 0, 264)
+ToggleBtn.BackgroundColor3  = Color3.fromRGB(130, 50, 240)
+ToggleBtn.BorderSizePixel   = 0
+ToggleBtn.Text              = "▶  START SPINNING"
+ToggleBtn.Font              = Enum.Font.GothamBold
+ToggleBtn.TextSize          = 16
+ToggleBtn.TextColor3        = Color3.fromRGB(255, 255, 255)
+ToggleBtn.ZIndex            = 5
+ToggleBtn.Parent            = Frame
+
+local BtnCorner = Instance.new("UICorner")
+BtnCorner.CornerRadius = UDim.new(0, 14)
+BtnCorner.Parent = ToggleBtn
+
+local BtnGrad = Instance.new("UIGradient")
+BtnGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0,   Color3.fromRGB(160, 70, 255)),
+    ColorSequenceKeypoint.new(1,   Color3.fromRGB(100, 30, 200)),
+})
+BtnGrad.Rotation = 90
+BtnGrad.Parent   = ToggleBtn
+
+-- hover glow
+ToggleBtn.MouseEnter:Connect(function()
+    TweenService:Create(ToggleBtn, TweenInfo.new(0.15), {
+        BackgroundColor3 = Color3.fromRGB(170, 90, 255)
+    }):Play()
+end)
+ToggleBtn.MouseLeave:Connect(function()
+    TweenService:Create(ToggleBtn, TweenInfo.new(0.15), {
+        BackgroundColor3 = Color3.fromRGB(130, 50, 240)
+    }):Play()
+end)
+
+-- ── MINIMIZE BUTTON ──────────────────────────
+local MinBtn = Instance.new("TextButton")
+MinBtn.Size              = UDim2.new(0, 28, 0, 28)
+MinBtn.Position          = UDim2.new(1, -36, 0, 8)
+MinBtn.BackgroundColor3  = Color3.fromRGB(60, 30, 100)
+MinBtn.BorderSizePixel   = 0
+MinBtn.Text              = "–"
+MinBtn.Font              = Enum.Font.GothamBold
+MinBtn.TextSize          = 18
+MinBtn.TextColor3        = Color3.fromRGB(200, 160, 255)
+MinBtn.ZIndex            = 8
+MinBtn.Parent            = Frame
+
+local MinCorner = Instance.new("UICorner")
+MinCorner.CornerRadius = UDim.new(1, 0)
+MinCorner.Parent = MinBtn
+
+-- ────────────────────────────────────────────
+--  LOGIC
+-- ────────────────────────────────────────────
+local spinning   = AUTO_START
+local spinCount  = 0
+local spinThread = nil
+
+local EMOJIS = {"🐾","🐶","🐱","🦊","🐺","🐻","🐼","🐨","🦁","🐯","🐸","🐙","🦋","🦄"}
+local emojiIdx = 1
+
+local function setStatus(active)
+    if active then
+        StatusDot.BackgroundColor3 = Color3.fromRGB(80, 255, 140)
+        StatusText.Text            = "Spinning…"
+        StatusText.TextColor3      = Color3.fromRGB(120, 255, 160)
+        TweenService:Create(ToggleBtn, TweenInfo.new(0.2), {
+            BackgroundColor3 = Color3.fromRGB(220, 50, 100)
+        }):Play()
+        ToggleBtn.Text = "■  STOP SPINNING"
+        Stroke.Color   = Color3.fromRGB(80, 255, 140)
+    else
+        StatusDot.BackgroundColor3 = Color3.fromRGB(80, 80, 100)
+        StatusText.Text            = "Idle"
+        StatusText.TextColor3      = Color3.fromRGB(160, 150, 190)
+        TweenService:Create(ToggleBtn, TweenInfo.new(0.2), {
+            BackgroundColor3 = Color3.fromRGB(130, 50, 240)
+        }):Play()
+        ToggleBtn.Text = "▶  START SPINNING"
+        Stroke.Color   = Color3.fromRGB(180, 80, 255)
     end
-    button.Text = "Start"
-    button.BackgroundColor3 = Color3.fromRGB(0, 170, 80)
-    statusLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
-    statusLabel.Text = "Status: Stopped"
-    countdownLabel.Text = "Next fire: --s"
 end
 
-button.MouseButton1Click:Connect(function()
-    if running then
-        stopLoop()
-    else
-        startLoop()
+local function bumpEmoji()
+    emojiIdx = (emojiIdx % #EMOJIS) + 1
+    PetLabel.Text = EMOJIS[emojiIdx]
+    TweenService:Create(PetLabel, TweenInfo.new(0.08, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+        TextSize = 66
+    }):Play()
+    task.delay(0.12, function()
+        TweenService:Create(PetLabel, TweenInfo.new(0.12), {TextSize = 52}):Play()
+    end)
+end
+
+local function startSpinning()
+    if spinThread then return end
+    spinThread = task.spawn(function()
+        while spinning do
+            local ok, err = pcall(function()
+                ReplicatedStorage
+                    :WaitForChild("SpinAPetRemotes")
+                    :WaitForChild("SpinPet")
+                    :FireServer()
+            end)
+            spinCount += 1
+            CountNum.Text = tostring(spinCount)
+            bumpEmoji()
+            -- pulse count
+            TweenService:Create(CountNum, TweenInfo.new(0.07), {TextSize = 28}):Play()
+            task.delay(0.1, function()
+                TweenService:Create(CountNum, TweenInfo.new(0.1), {TextSize = 22}):Play()
+            end)
+            task.wait(SPIN_DELAY)
+        end
+        spinThread = nil
+    end)
+end
+
+ToggleBtn.MouseButton1Click:Connect(function()
+    spinning = not spinning
+    setStatus(spinning)
+    -- button press animation
+    TweenService:Create(ToggleBtn, TweenInfo.new(0.07), {Size = UDim2.new(1, -48, 0, 44)}):Play()
+    task.delay(0.1, function()
+        TweenService:Create(ToggleBtn, TweenInfo.new(0.12, Enum.EasingStyle.Back), {
+            Size = UDim2.new(1, -40, 0, 48)
+        }):Play()
+    end)
+    if spinning then startSpinning() end
+end)
+
+-- minimize toggle
+local minimized = false
+MinBtn.MouseButton1Click:Connect(function()
+    minimized = not minimized
+    local targetSize = minimized
+        and UDim2.new(0, 280, 0, 48)
+        or  UDim2.new(0, 280, 0, 340)
+    MinBtn.Text = minimized and "+" or "–"
+    TweenService:Create(Frame, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {
+        Size = targetSize
+    }):Play()
+end)
+
+-- ────────────────────────────────────────────
+--  SHIMMER LOOP
+-- ────────────────────────────────────────────
+task.spawn(function()
+    while true do
+        Shimmer.Position = UDim2.new(-0.4, 0, -0.5, 0)
+        TweenService:Create(Shimmer, TweenInfo.new(1.8, Enum.EasingStyle.Linear), {
+            Position = UDim2.new(1.2, 0, -0.5, 0)
+        }):Play()
+        task.wait(3.5)
     end
 end)
+
+-- ────────────────────────────────────────────
+--  BORDER PULSE LOOP
+-- ────────────────────────────────────────────
+task.spawn(function()
+    while true do
+        TweenService:Create(Stroke, TweenInfo.new(1.0, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+            Thickness = 3
+        }):Play()
+        task.wait(1.0)
+        TweenService:Create(Stroke, TweenInfo.new(1.0, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+            Thickness = 1.5
+        }):Play()
+        task.wait(1.0)
+    end
+end)
+
+-- ────────────────────────────────────────────
+--  ENTRY ANIMATION
+-- ────────────────────────────────────────────
+Frame.Size         = UDim2.new(0, 0, 0, 0)
+Frame.Position     = UDim2.new(0.5, 0, 0.5, 0)
+Frame.Rotation     = -6
+TweenService:Create(Frame, TweenInfo.new(0.55, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+    Size     = UDim2.new(0, 280, 0, 340),
+    Position = UDim2.new(0.5, -140, 0.5, -170),
+    Rotation = 0,
+}):Play()
+
+if AUTO_START then
+    spinning = true
+    setStatus(true)
+    startSpinning()
+end
