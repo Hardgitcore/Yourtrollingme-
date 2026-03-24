@@ -71,14 +71,41 @@ BG.Color = ColorSequence.new({
 BG.Rotation = 135
 BG.Parent   = Frame
 
--- ── DRAGGABLE ────────────────────────────────
+-- ── DRAGGABLE (mouse + touch) ─────────────────
 do
-    local dragging, dragInput, dragStart, startPos
+    local UserInputService = game:GetService("UserInputService")
+    local dragging  = false
+    local dragInput = nil
+    local dragStart = nil
+    local startPos  = nil
+
+    local function isValidDragInput(input)
+        return input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch
+    end
+
+    local function isValidMoveInput(input)
+        return input.UserInputType == Enum.UserInputType.MouseMovement
+            or input.UserInputType == Enum.UserInputType.Touch
+    end
+
     Frame.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        -- ignore taps on interactive children (buttons)
+        if input.UserInputType == Enum.UserInputType.Touch then
+            local guiObjects = PlayerGui:GetGuiObjectsAtPosition(
+                input.Position.X, input.Position.Y
+            )
+            for _, obj in ipairs(guiObjects) do
+                if obj:IsA("TextButton") then return end
+            end
+        end
+
+        if isValidDragInput(input) then
             dragging  = true
+            dragInput = input
             dragStart = input.Position
             startPos  = Frame.Position
+
             input.Changed:Connect(function()
                 if input.UserInputState == Enum.UserInputState.End then
                     dragging = false
@@ -86,13 +113,15 @@ do
             end)
         end
     end)
+
     Frame.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement then
+        if isValidMoveInput(input) then
             dragInput = input
         end
     end)
-    game:GetService("UserInputService").InputChanged:Connect(function(input)
-        if input == dragInput and dragging then
+
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and input == dragInput and isValidMoveInput(input) then
             local delta = input.Position - dragStart
             Frame.Position = UDim2.new(
                 startPos.X.Scale, startPos.X.Offset + delta.X,
