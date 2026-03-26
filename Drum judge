@@ -12,10 +12,6 @@ local GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 local lastQuestion = ""
 local isRunning = false
 
--- =====================
--- BUILD GUI
--- =====================
-
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "GroqAnswerGui"
 ScreenGui.ResetOnSpawn = false
@@ -41,7 +37,6 @@ UIStroke.Color = Color3.fromRGB(80, 80, 180)
 UIStroke.Thickness = 1.5
 UIStroke.Parent = MainFrame
 
--- Title bar
 local TitleBar = Instance.new("Frame")
 TitleBar.Size = UDim2.new(1, 0, 0, 36)
 TitleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
@@ -70,7 +65,6 @@ TitleLabel.Font = Enum.Font.GothamBold
 TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
 TitleLabel.Parent = TitleBar
 
--- Auto toggle button
 local AutoBtn = Instance.new("TextButton")
 AutoBtn.Size = UDim2.new(0, 60, 0, 24)
 AutoBtn.Position = UDim2.new(1, -98, 0, 6)
@@ -105,7 +99,6 @@ CloseBtn.MouseButton1Click:Connect(function()
 	ScreenGui:Destroy()
 end)
 
--- Question display
 local QuestionTitle = Instance.new("TextLabel")
 QuestionTitle.Size = UDim2.new(1, -20, 0, 16)
 QuestionTitle.Position = UDim2.new(0, 10, 0, 44)
@@ -140,7 +133,6 @@ QPadding.PaddingRight = UDim.new(0, 8)
 QPadding.PaddingTop = UDim.new(0, 4)
 QPadding.Parent = QuestionBox
 
--- Answer display
 local AnswerTitle = Instance.new("TextLabel")
 AnswerTitle.Size = UDim2.new(1, -20, 0, 16)
 AnswerTitle.Position = UDim2.new(0, 10, 0, 108)
@@ -175,7 +167,6 @@ APadding.PaddingRight = UDim.new(0, 8)
 APadding.PaddingTop = UDim.new(0, 4)
 APadding.Parent = AnswerBox
 
--- Status label
 local StatusLabel = Instance.new("TextLabel")
 StatusLabel.Size = UDim2.new(1, -20, 0, 18)
 StatusLabel.Position = UDim2.new(0, 10, 0, 200)
@@ -187,7 +178,6 @@ StatusLabel.Font = Enum.Font.Gotham
 StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
 StatusLabel.Parent = MainFrame
 
--- Manual run button
 local RunBtn = Instance.new("TextButton")
 RunBtn.Size = UDim2.new(0, 90, 0, 28)
 RunBtn.Position = UDim2.new(1, -100, 0, 198)
@@ -207,7 +197,7 @@ RBCorner.Parent = RunBtn
 -- LOGIC
 -- =====================
 
-local autoEnabled = true
+local autoEnabled = false
 
 local function setStatus(msg, color)
 	StatusLabel.Text = "Status: " .. msg
@@ -342,8 +332,6 @@ local function processQuestion(question)
 		elseif fluxus and fluxus.fire_button then
 			fluxus.fire_button(submitButton)
 		else
-			local fakeClick = Instance.new("InputObject")
-			fakeClick.UserInputType = Enum.UserInputType.MouseButton1
 			submitButton:SimulateClick()
 		end
 	end)
@@ -359,7 +347,6 @@ local function processQuestion(question)
 	isRunning = false
 end
 
--- Manual force run button
 RunBtn.MouseButton1Click:Connect(function()
 	local questionObj = workspace:FindFirstChild("Question")
 	if not questionObj then
@@ -375,7 +362,6 @@ RunBtn.MouseButton1Click:Connect(function()
 	processQuestion(question)
 end)
 
--- Auto-watch for new questions
 local function startWatching()
 	local questionObj = workspace:WaitForChild("Question", 30)
 	if not questionObj then
