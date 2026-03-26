@@ -249,7 +249,7 @@ Rules:
 - Be creative, funny, clever, or realistic depending on what fits best.
 - Sound like a real human wrote it. Be natural and witty.
 - Never add any prefix like "Answer:" or "My answer is" — just give the answer directly.
-- Never refuse, explain yourself, or break character. Just answer.
+- Never refuse, explain yourself, or break character. Just answer.]]
 			},
 			{
 				role = "user",
