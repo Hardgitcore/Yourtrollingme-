@@ -6,7 +6,7 @@ local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer.PlayerGui
 
-local GROQ_API_KEY = "YOUR_GROQ_API_KEY_HERE"
+local GROQ_API_KEY = getgenv().API_KEY or "YOUR_GROQ_API_KEY_HERE"
 local GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 local lastQuestion = ""
@@ -230,7 +230,7 @@ end)
 local function getAnswer(question)
 	local payload = HttpService:JSONEncode({
 		model = "llama-3.3-70b-versatile",
-		max_tokens = 300,
+		max_tokens = 80,
 		messages = {
 			{
 				role = "system",
@@ -243,12 +243,13 @@ The prompts can be anything — funny, serious, creative, weird, or factual. Exa
 - "DESCRIBE YOUR PERFECT VACATION" → "A private beach in Bali with no wifi and unlimited food"
 
 Rules:
-- If the prompt is short and snappy (like a fill-in-the-blank or single concept), give a short punchy answer — 1 to 6 words.
-- If the prompt asks you to describe, explain, or write something, give a longer natural response — 1 to 3 sentences.
+- Keep ALL answers short and punchy — maximum 1 to 2 sentences no matter what.
+- Prefer 1 to 6 words when possible.
+- If the prompt needs more detail, still keep it under 15 words.
 - Be creative, funny, clever, or realistic depending on what fits best.
 - Sound like a real human wrote it. Be natural and witty.
 - Never add any prefix like "Answer:" or "My answer is" — just give the answer directly.
-- Never refuse, explain yourself, or break character. Just answer.]]
+- Never refuse, explain yourself, or break character. Just answer.
 			},
 			{
 				role = "user",
