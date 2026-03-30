@@ -36,7 +36,7 @@ Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 8)
 local titleLabel = Instance.new("TextLabel")
 titleLabel.Size = UDim2.new(1, 0, 1, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "8:20PM"
+titleLabel.Text = "8:20 PM"
 titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleLabel.TextSize = 14
 titleLabel.Font = Enum.Font.GothamBold
@@ -138,10 +138,24 @@ tpButton.MouseButton1Click:Connect(function()
     if not char then return end
 
     local root = char:FindFirstChild("HumanoidRootPart")
-    local exit = workspace:FindFirstChild("Sublevel") and workspace.Sublevel:FindFirstChild("Exit")
+    if not root then return end
 
-    if root and exit and exit:IsA("BasePart") then
+    local sub = workspace:FindFirstChild("Sublevel")
+    if not sub then return end
+
+    local exit = sub:FindFirstChild("Exit")
+    if not exit then return end
+
+    -- ✅ If it's a BasePart
+    if exit:IsA("BasePart") then
         root.CFrame = exit.CFrame + Vector3.new(0, 5, 0)
+
+    -- ✅ If it's a Model
+    elseif exit:IsA("Model") then
+        local part = exit.PrimaryPart or exit:FindFirstChildWhichIsA("BasePart")
+        if part then
+            root.CFrame = part.CFrame + Vector3.new(0, 5, 0)
+        end
     end
 end)
 
