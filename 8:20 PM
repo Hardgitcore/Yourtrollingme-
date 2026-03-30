@@ -4,42 +4,41 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
 
--- GUI
-local gui = Instance.new("ScreenGui", player.PlayerGui)
-gui.Name = "8:20 PM"
-gui.ResetOnSpawn = false
+-- ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ClickDetectorFirer"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player.PlayerGui
 
-local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.new(0, 230, 0, 360)
-frame.Position = UDim2.new(0, 20, 0.5, -180)
-frame.BackgroundColor3 = Color3.fromRGB(30,30,30)
-frame.Active = true
-frame.Draggable = true
-Instance.new("UICorner", frame)
+-- Main Frame
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 230, 0, 340)
+mainFrame.Position = UDim2.new(0, 20, 0.5, -170)
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
 
-local function makeToggle(text, y, color)
-    local label = Instance.new("TextLabel", frame)
-    label.Size = UDim2.new(1,-20,0,16)
-    label.Position = UDim2.new(0,10,0,y)
-    label.BackgroundTransparency = 1
-    label.Text = text
-    label.TextColor3 = Color3.fromRGB(160,160,160)
-    label.Font = Enum.Font.Gotham
-    label.TextSize = 11
-    label.TextXAlignment = Enum.TextXAlignment.Left
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8)
 
-    local btn = Instance.new("TextButton", frame)
-    btn.Size = UDim2.new(1,-20,0,28)
-    btn.Position = UDim2.new(0,10,0,y+18)
-    btn.BackgroundColor3 = color
-    btn.Text = "Enable"
-    btn.TextColor3 = Color3.new(1,1,1)
-    btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 13
-    Instance.new("UICorner", btn)
+-- Title Bar
+local titleBar = Instance.new("Frame")
+titleBar.Size = UDim2.new(1, 0, 0, 36)
+titleBar.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+titleBar.BorderSizePixel = 0
+titleBar.Parent = mainFrame
 
-    return btn
-end
+Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 8)
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, 0, 1, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "🖱 Click Detector Firer"
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.TextSize = 14
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.Parent = titleBar
 
 -- Toggles
 local clickToggle  = makeToggle("Click Detectors", 20, Color3.fromRGB(60,130,220))
