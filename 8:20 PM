@@ -1,225 +1,173 @@
--- LocalScript inside StarterGui or StarterPlayerScripts
+-- LocalScript
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
 
-local RANGE = math.huge
+-- GUI
+local gui = Instance.new("ScreenGui", player.PlayerGui)
+gui.Name = "UtilityGui"
+gui.ResetOnSpawn = false
 
--- ScreenGui
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "ClickDetectorFirer"
-screenGui.ResetOnSpawn = false
-screenGui.Parent = player.PlayerGui
+local frame = Instance.new("Frame", gui)
+frame.Size = UDim2.new(0, 230, 0, 360)
+frame.Position = UDim2.new(0, 20, 0.5, -180)
+frame.BackgroundColor3 = Color3.fromRGB(30,30,30)
+frame.Active = true
+frame.Draggable = true
+Instance.new("UICorner", frame)
 
--- Main Frame
-local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 230, 0, 340)
-mainFrame.Position = UDim2.new(0, 20, 0.5, -170)
-mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-mainFrame.BorderSizePixel = 0
-mainFrame.Active = true
-mainFrame.Draggable = true
-mainFrame.Parent = screenGui
-
-Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8)
-
--- Title Bar
-local titleBar = Instance.new("Frame")
-titleBar.Size = UDim2.new(1, 0, 0, 36)
-titleBar.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-titleBar.BorderSizePixel = 0
-titleBar.Parent = mainFrame
-
-Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 8)
-
-local titleLabel = Instance.new("TextLabel")
-titleLabel.Size = UDim2.new(1, 0, 1, 0)
-titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "8:20 PM"
-titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-titleLabel.TextSize = 14
-titleLabel.Font = Enum.Font.GothamBold
-titleLabel.Parent = titleBar
-
--- Helper
-local function makeToggle(labelText, yPos, color)
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, -20, 0, 16)
-    label.Position = UDim2.new(0, 10, 0, yPos)
+local function makeToggle(text, y, color)
+    local label = Instance.new("TextLabel", frame)
+    label.Size = UDim2.new(1,-20,0,16)
+    label.Position = UDim2.new(0,10,0,y)
     label.BackgroundTransparency = 1
-    label.Text = labelText
-    label.TextColor3 = Color3.fromRGB(160, 160, 160)
-    label.TextSize = 11
+    label.Text = text
+    label.TextColor3 = Color3.fromRGB(160,160,160)
     label.Font = Enum.Font.Gotham
+    label.TextSize = 11
     label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Parent = mainFrame
 
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, -20, 0, 28)
-    btn.Position = UDim2.new(0, 10, 0, yPos + 18)
+    local btn = Instance.new("TextButton", frame)
+    btn.Size = UDim2.new(1,-20,0,28)
+    btn.Position = UDim2.new(0,10,0,y+18)
     btn.BackgroundColor3 = color
-    btn.BorderSizePixel = 0
     btn.Text = "Enable"
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.TextSize = 13
+    btn.TextColor3 = Color3.new(1,1,1)
     btn.Font = Enum.Font.GothamBold
-    btn.Parent = mainFrame
-
-    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+    btn.TextSize = 13
+    Instance.new("UICorner", btn)
 
     return btn
 end
 
--- Info Labels
-local statusLabel = Instance.new("TextLabel")
-statusLabel.Size = UDim2.new(1, -20, 0, 20)
-statusLabel.Position = UDim2.new(0, 10, 0, 44)
-statusLabel.BackgroundTransparency = 1
-statusLabel.Text = "Status: OFF"
-statusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-statusLabel.TextSize = 12
-statusLabel.Font = Enum.Font.Gotham
-statusLabel.TextXAlignment = Enum.TextXAlignment.Left
-statusLabel.Parent = mainFrame
-
-local countLabel = Instance.new("TextLabel")
-countLabel.Size = UDim2.new(1, -20, 0, 16)
-countLabel.Position = UDim2.new(0, 10, 0, 62)
-countLabel.BackgroundTransparency = 1
-countLabel.Text = "Fired: 0"
-countLabel.TextColor3 = Color3.fromRGB(130, 130, 130)
-countLabel.TextSize = 11
-countLabel.Font = Enum.Font.Gotham
-countLabel.TextXAlignment = Enum.TextXAlignment.Left
-countLabel.Parent = mainFrame
-
 -- Toggles
-local clickToggle  = makeToggle("Click Detectors", 90, Color3.fromRGB(60,130,220))
-local fakeToggle   = makeToggle("Delete Fake Objects", 140, Color3.fromRGB(160,100,30))
-local wraithToggle = makeToggle("Delete Wraith Objects", 190, Color3.fromRGB(80,50,160))
-local wallsToggle  = makeToggle("Delete FakeWalls Folder", 240, Color3.fromRGB(200,120,40))
-local tpButton     = makeToggle("Teleport to Exit", 290, Color3.fromRGB(60,180,100))
+local clickToggle  = makeToggle("Click Detectors", 20, Color3.fromRGB(60,130,220))
+local fakeToggle   = makeToggle("Delete Fake Objects", 70, Color3.fromRGB(160,100,30))
+local wraithToggle = makeToggle("Delete Wraith Objects", 120, Color3.fromRGB(80,50,160))
+local wallsToggle  = makeToggle("Delete FakeWalls", 170, Color3.fromRGB(200,120,40))
+local espToggle    = makeToggle("Wraith ESP", 220, Color3.fromRGB(200,80,80))
+local tpButton     = makeToggle("Teleport to Exit", 270, Color3.fromRGB(60,180,100))
 
--- State
-local clickEnabled = false
-local fakeEnabled = false
-local wraithEnabled = false
-local wallsEnabled = false
+-- States
+local clickEnabled, fakeEnabled, wraithEnabled, wallsEnabled, espEnabled = false,false,false,false,false
 
-local fireCount = 0
-
-local function flipBtn(btn, current, onColor)
-    local new = not current
-    btn.Text = new and "Disable" or "Enable"
-    btn.BackgroundColor3 = new and Color3.fromRGB(200, 60, 60) or onColor
-    return new
+local function flip(btn, state, color)
+    state = not state
+    btn.Text = state and "Disable" or "Enable"
+    btn.BackgroundColor3 = state and Color3.fromRGB(200,60,60) or color
+    return state
 end
 
 clickToggle.MouseButton1Click:Connect(function()
-    clickEnabled = flipBtn(clickToggle, clickEnabled, Color3.fromRGB(60,130,220))
+    clickEnabled = flip(clickToggle, clickEnabled, Color3.fromRGB(60,130,220))
 end)
 
 fakeToggle.MouseButton1Click:Connect(function()
-    fakeEnabled = flipBtn(fakeToggle, fakeEnabled, Color3.fromRGB(160,100,30))
+    fakeEnabled = flip(fakeToggle, fakeEnabled, Color3.fromRGB(160,100,30))
 end)
 
 wraithToggle.MouseButton1Click:Connect(function()
-    wraithEnabled = flipBtn(wraithToggle, wraithEnabled, Color3.fromRGB(80,50,160))
+    wraithEnabled = flip(wraithToggle, wraithEnabled, Color3.fromRGB(80,50,160))
 end)
 
 wallsToggle.MouseButton1Click:Connect(function()
-    wallsEnabled = flipBtn(wallsToggle, wallsEnabled, Color3.fromRGB(200,120,40))
+    wallsEnabled = flip(wallsToggle, wallsEnabled, Color3.fromRGB(200,120,40))
 end)
 
--- Teleport button (instant, not toggle)
+espToggle.MouseButton1Click:Connect(function()
+    espEnabled = flip(espToggle, espEnabled, Color3.fromRGB(200,80,80))
+end)
+
+-- TP (fixed)
 tpButton.MouseButton1Click:Connect(function()
     local char = player.Character
     if not char then return end
 
     local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then return end
-
     local sub = workspace:FindFirstChild("Sublevel")
-    if not sub then return end
+    local exit = sub and sub:FindFirstChild("Exit")
 
-    local exit = sub:FindFirstChild("Exit")
-    if not exit then return end
-
-    -- ✅ If it's a BasePart
-    if exit:IsA("BasePart") then
-        root.CFrame = exit.CFrame + Vector3.new(0, 5, 0)
-
-    -- ✅ If it's a Model
-    elseif exit:IsA("Model") then
-        local part = exit.PrimaryPart or exit:FindFirstChildWhichIsA("BasePart")
-        if part then
-            root.CFrame = part.CFrame + Vector3.new(0, 5, 0)
+    if root and exit then
+        if exit:IsA("BasePart") then
+            root.CFrame = exit.CFrame + Vector3.new(0,5,0)
+        elseif exit:IsA("Model") then
+            local part = exit.PrimaryPart or exit:FindFirstChildWhichIsA("BasePart")
+            if part then
+                root.CFrame = part.CFrame + Vector3.new(0,5,0)
+            end
         end
     end
 end)
 
 -- Functions
 
-local function deleteFakeWalls()
-    local sub = workspace:FindFirstChild("Sublevel")
-    if not sub then return end
-
-    local walls = sub:FindFirstChild("Walls")
-    if not walls then return end
-
-    local fakeWalls = walls:FindFirstChild("FakeWalls")
-    if fakeWalls then
-        for _, obj in ipairs(fakeWalls:GetChildren()) do
-            pcall(function() obj:Destroy() end)
-        end
-    end
-end
-
-local function fireAllClickDetectors()
+local function fireClicks()
     for _, obj in ipairs(workspace:GetDescendants()) do
         if obj:IsA("ClickDetector") then
             pcall(fireclickdetector, obj)
-            fireCount += 1
-            countLabel.Text = "Fired: " .. fireCount
         end
     end
 end
 
-local LAP_FOLDERS = {"Lap1","Lap2","Lap3","Lap4"}
-
-local function scanAndDeleteKeyword(folder, keyword)
-    if not folder then return end
-    for _, obj in ipairs(folder:GetChildren()) do
-        if string.find(obj.Name:lower(), keyword) then
+local function deleteFake()
+    local sub = workspace:FindFirstChild("Sublevel")
+    if not sub then return end
+    for _, obj in ipairs(sub:GetDescendants()) do
+        if obj.Name:lower():find("fake") then
             pcall(function() obj:Destroy() end)
         end
     end
 end
 
-local function deleteFakeObjects()
+local function deleteWraith()
     local sub = workspace:FindFirstChild("Sublevel")
     if not sub then return end
-
-    scanAndDeleteKeyword(sub, "fake")
-    for _, f in ipairs(LAP_FOLDERS) do
-        scanAndDeleteKeyword(sub:FindFirstChild(f), "fake")
+    for _, obj in ipairs(sub:GetDescendants()) do
+        if obj.Name:lower():find("wraith") then
+            pcall(function() obj:Destroy() end)
+        end
     end
 end
 
-local function deleteWraithObjects()
+local function deleteFakeWalls()
     local sub = workspace:FindFirstChild("Sublevel")
-    if not sub then return end
-
-    for _, f in ipairs(LAP_FOLDERS) do
-        scanAndDeleteKeyword(sub:FindFirstChild(f), "wraith")
+    local fw = sub and sub:FindFirstChild("Walls") and sub.Walls:FindFirstChild("FakeWalls")
+    if fw then
+        for _, v in ipairs(fw:GetChildren()) do
+            pcall(function() v:Destroy() end)
+        end
     end
 end
 
--- Loop
+-- 👁 ESP (simple legit)
+local function espWalls()
+    local sub = workspace:FindFirstChild("Sublevel")
+    local fw = sub and sub:FindFirstChild("Walls") and sub.Walls:FindFirstChild("FakeWalls")
+    if not fw then return end
+
+    for _, obj in ipairs(fw:GetDescendants()) do
+        if obj:IsA("BasePart") then
+            if not obj:FindFirstChild("ESP") then
+                local h = Instance.new("Highlight")
+                h.Name = "ESP"
+                h.FillColor = Color3.fromRGB(255,80,80)
+                h.FillTransparency = 0.6
+                h.OutlineTransparency = 0
+                h.Adornee = obj
+                h.Parent = obj
+            end
+
+            obj.Transparency = 0.5
+        end
+    end
+end
+
+-- Loop (no optimization)
 RunService.Heartbeat:Connect(function()
-    if clickEnabled then fireAllClickDetectors() end
-    if fakeEnabled then deleteFakeObjects() end
-    if wraithEnabled then deleteWraithObjects() end
+    if clickEnabled then fireClicks() end
+    if fakeEnabled then deleteFake() end
+    if wraithEnabled then deleteWraith() end
     if wallsEnabled then deleteFakeWalls() end
+    if espEnabled then espWalls() end
 end)
