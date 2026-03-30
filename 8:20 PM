@@ -227,11 +227,11 @@ end
 -- ESP (simple legit)
 local function espWalls()
     local sub = workspace:FindFirstChild("Sublevel")
-    local fw = sub and sub:FindFirstChild("Walls") and sub.Walls:FindFirstChild("FakeWalls")
+    local fw = sub and sub:FindFirstChild("Walls") and sub.Walls:FindFirstChild("WraithWalls")
     if not fw then return end
 
     for _, obj in ipairs(fw:GetDescendants()) do
-        if obj:IsA("BasePart") then
+        if obj:IsA("Model") then
             if not obj:FindFirstChild("ESP") then
                 local h = Instance.new("Highlight")
                 h.Name = "ESP"
