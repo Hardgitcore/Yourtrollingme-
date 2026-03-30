@@ -14,8 +14,8 @@ screenGui.Parent = player.PlayerGui
 
 -- Main Frame
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 230, 0, 280) -- slightly smaller now
-mainFrame.Position = UDim2.new(0, 20, 0.5, -140)
+mainFrame.Size = UDim2.new(0, 230, 0, 340)
+mainFrame.Position = UDim2.new(0, 20, 0.5, -170)
 mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 mainFrame.BorderSizePixel = 0
 mainFrame.Active = true
@@ -83,20 +83,9 @@ statusLabel.Font = Enum.Font.Gotham
 statusLabel.TextXAlignment = Enum.TextXAlignment.Left
 statusLabel.Parent = mainFrame
 
-local rangeLabel = Instance.new("TextLabel")
-rangeLabel.Size = UDim2.new(1, -20, 0, 16)
-rangeLabel.Position = UDim2.new(0, 10, 0, 62)
-rangeLabel.BackgroundTransparency = 1
-rangeLabel.Text = "Range: " .. (RANGE == math.huge and "Infinite" or RANGE .. " studs")
-rangeLabel.TextColor3 = Color3.fromRGB(130, 130, 130)
-rangeLabel.TextSize = 11
-rangeLabel.Font = Enum.Font.Gotham
-rangeLabel.TextXAlignment = Enum.TextXAlignment.Left
-rangeLabel.Parent = mainFrame
-
 local countLabel = Instance.new("TextLabel")
 countLabel.Size = UDim2.new(1, -20, 0, 16)
-countLabel.Position = UDim2.new(0, 10, 0, 78)
+countLabel.Position = UDim2.new(0, 10, 0, 62)
 countLabel.BackgroundTransparency = 1
 countLabel.Text = "Fired: 0"
 countLabel.TextColor3 = Color3.fromRGB(130, 130, 130)
@@ -105,16 +94,20 @@ countLabel.Font = Enum.Font.Gotham
 countLabel.TextXAlignment = Enum.TextXAlignment.Left
 countLabel.Parent = mainFrame
 
--- Toggles (fixed positions)
-local clickToggle  = makeToggle("Click Detectors",      100, Color3.fromRGB(60, 130, 220))
-local fakeToggle   = makeToggle("Delete Fake Objects",  152, Color3.fromRGB(160, 100, 30))
-local wraithToggle = makeToggle("Delete Wraith Objects", 204, Color3.fromRGB(80, 50, 160))
+-- Toggles
+local clickToggle  = makeToggle("Click Detectors", 90, Color3.fromRGB(60,130,220))
+local fakeToggle   = makeToggle("Delete Fake Objects", 140, Color3.fromRGB(160,100,30))
+local wraithToggle = makeToggle("Delete Wraith Objects", 190, Color3.fromRGB(80,50,160))
+local wallsToggle  = makeToggle("Delete FakeWalls Folder", 240, Color3.fromRGB(200,120,40))
+local tpButton     = makeToggle("Teleport to Exit", 290, Color3.fromRGB(60,180,100))
 
 -- State
-local clickEnabled  = false
-local fakeEnabled   = false
+local clickEnabled = false
+local fakeEnabled = false
 local wraithEnabled = false
-local fireCount     = 0
+local wallsEnabled = false
+
+local fireCount = 0
 
 local function flipBtn(btn, current, onColor)
     local new = not current
@@ -124,47 +117,62 @@ local function flipBtn(btn, current, onColor)
 end
 
 clickToggle.MouseButton1Click:Connect(function()
-    clickEnabled = flipBtn(clickToggle, clickEnabled, Color3.fromRGB(60, 130, 220))
-    statusLabel.Text = "Status: " .. (clickEnabled and "ON" or "OFF")
-    statusLabel.TextColor3 = clickEnabled and Color3.fromRGB(100, 220, 100) or Color3.fromRGB(200, 200, 200)
+    clickEnabled = flipBtn(clickToggle, clickEnabled, Color3.fromRGB(60,130,220))
 end)
 
 fakeToggle.MouseButton1Click:Connect(function()
-    fakeEnabled = flipBtn(fakeToggle, fakeEnabled, Color3.fromRGB(160, 100, 30))
+    fakeEnabled = flipBtn(fakeToggle, fakeEnabled, Color3.fromRGB(160,100,30))
 end)
 
 wraithToggle.MouseButton1Click:Connect(function()
-    wraithEnabled = flipBtn(wraithToggle, wraithEnabled, Color3.fromRGB(80, 50, 160))
+    wraithEnabled = flipBtn(wraithToggle, wraithEnabled, Color3.fromRGB(80,50,160))
+end)
+
+wallsToggle.MouseButton1Click:Connect(function()
+    wallsEnabled = flipBtn(wallsToggle, wallsEnabled, Color3.fromRGB(200,120,40))
+end)
+
+-- Teleport button (instant, not toggle)
+tpButton.MouseButton1Click:Connect(function()
+    local char = player.Character
+    if not char then return end
+
+    local root = char:FindFirstChild("HumanoidRootPart")
+    local exit = workspace:FindFirstChild("Sublevel") and workspace.Sublevel:FindFirstChild("Exit")
+
+    if root and exit and exit:IsA("BasePart") then
+        root.CFrame = exit.CFrame + Vector3.new(0, 5, 0)
+    end
 end)
 
 -- Functions
 
-local function fireAllClickDetectors()
-    local root = nil
-    local char = player.Character
-    if char then root = char:FindFirstChild("HumanoidRootPart") end
+local function deleteFakeWalls()
+    local sub = workspace:FindFirstChild("Sublevel")
+    if not sub then return end
 
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj:IsA("ClickDetector") then
-            local part = obj.Parent
-            if part and part:IsA("BasePart") then
-                local withinRange = true
-                if root and RANGE ~= math.huge then
-                    withinRange = (root.Position - part.Position).Magnitude <= RANGE
-                end
-                if withinRange then
-                    local ok = pcall(fireclickdetector, obj)
-                    if ok then
-                        fireCount += 1
-                        countLabel.Text = "Fired: " .. fireCount
-                    end
-                end
-            end
+    local walls = sub:FindFirstChild("Walls")
+    if not walls then return end
+
+    local fakeWalls = walls:FindFirstChild("FakeWalls")
+    if fakeWalls then
+        for _, obj in ipairs(fakeWalls:GetChildren()) do
+            pcall(function() obj:Destroy() end)
         end
     end
 end
 
-local LAP_FOLDERS = {"Lap1", "Lap2", "Lap3", "Lap4"}
+local function fireAllClickDetectors()
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("ClickDetector") then
+            pcall(fireclickdetector, obj)
+            fireCount += 1
+            countLabel.Text = "Fired: " .. fireCount
+        end
+    end
+end
+
+local LAP_FOLDERS = {"Lap1","Lap2","Lap3","Lap4"}
 
 local function scanAndDeleteKeyword(folder, keyword)
     if not folder then return end
@@ -176,27 +184,28 @@ local function scanAndDeleteKeyword(folder, keyword)
 end
 
 local function deleteFakeObjects()
-    local sublevel = workspace:FindFirstChild("Sublevel")
-    if not sublevel then return end
+    local sub = workspace:FindFirstChild("Sublevel")
+    if not sub then return end
 
-    scanAndDeleteKeyword(sublevel, "fake")
-    for _, folderName in ipairs(LAP_FOLDERS) do
-        scanAndDeleteKeyword(sublevel:FindFirstChild(folderName), "fake")
+    scanAndDeleteKeyword(sub, "fake")
+    for _, f in ipairs(LAP_FOLDERS) do
+        scanAndDeleteKeyword(sub:FindFirstChild(f), "fake")
     end
 end
 
 local function deleteWraithObjects()
-    local sublevel = workspace:FindFirstChild("Sublevel")
-    if not sublevel then return end
+    local sub = workspace:FindFirstChild("Sublevel")
+    if not sub then return end
 
-    for _, folderName in ipairs(LAP_FOLDERS) do
-        scanAndDeleteKeyword(sublevel:FindFirstChild(folderName), "wraith")
+    for _, f in ipairs(LAP_FOLDERS) do
+        scanAndDeleteKeyword(sub:FindFirstChild(f), "wraith")
     end
 end
 
--- Main loop
+-- Loop
 RunService.Heartbeat:Connect(function()
-    if clickEnabled  then fireAllClickDetectors() end
-    if fakeEnabled   then deleteFakeObjects()     end
-    if wraithEnabled then deleteWraithObjects()   end
+    if clickEnabled then fireAllClickDetectors() end
+    if fakeEnabled then deleteFakeObjects() end
+    if wraithEnabled then deleteWraithObjects() end
+    if wallsEnabled then deleteFakeWalls() end
 end)
