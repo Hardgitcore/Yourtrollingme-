@@ -6,7 +6,7 @@ local player = Players.LocalPlayer
 
 -- GUI
 local gui = Instance.new("ScreenGui", player.PlayerGui)
-gui.Name = "UtilityGui"
+gui.Name = "8:20 PM"
 gui.ResetOnSpawn = false
 
 local frame = Instance.new("Frame", gui)
