@@ -14,8 +14,8 @@ screenGui.Parent = player.PlayerGui
 
 -- Main Frame
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 230, 0, 340)
-mainFrame.Position = UDim2.new(0, 20, 0.5, -170)
+mainFrame.Size = UDim2.new(0, 230, 0, 370)
+mainFrame.Position = UDim2.new(0, 20, 0.5, -185)
 mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 mainFrame.BorderSizePixel = 0
 mainFrame.Active = true
@@ -33,14 +33,37 @@ titleBar.Parent = mainFrame
 
 Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 8)
 
+local titleIcon = Instance.new("TextLabel")
+titleIcon.Size = UDim2.new(0, 30, 1, 0)
+titleIcon.Position = UDim2.new(0, 8, 0, 0)
+titleIcon.BackgroundTransparency = 1
+titleIcon.Text = "Slop"
+titleIcon.TextColor3 = Color3.fromRGB(255, 200, 80)
+titleIcon.TextSize = 16
+titleIcon.Font = Enum.Font.GothamBold
+titleIcon.Parent = titleBar
+
 local titleLabel = Instance.new("TextLabel")
-titleLabel.Size = UDim2.new(1, 0, 1, 0)
+titleLabel.Size = UDim2.new(1, -40, 1, 0)
+titleLabel.Position = UDim2.new(0, 36, 0, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "8:20 PM"
+titleLabel.Text = "8:20 PM Hub"
 titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleLabel.TextSize = 14
 titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 titleLabel.Parent = titleBar
+
+local versionLabel = Instance.new("TextLabel")
+versionLabel.Size = UDim2.new(0, 40, 1, 0)
+versionLabel.Position = UDim2.new(1, -48, 0, 0)
+versionLabel.BackgroundTransparency = 1
+versionLabel.Text = "v1.0"
+versionLabel.TextColor3 = Color3.fromRGB(100, 100, 100)
+versionLabel.TextSize = 11
+versionLabel.Font = Enum.Font.Gotham
+versionLabel.TextXAlignment = Enum.TextXAlignment.Right
+versionLabel.Parent = titleBar
 
 -- Helper
 local function makeToggle(labelText, yPos, color)
@@ -94,13 +117,13 @@ countLabel.Font = Enum.Font.Gotham
 countLabel.TextXAlignment = Enum.TextXAlignment.Left
 countLabel.Parent = mainFrame
 
--- Toggles
-local clickToggle  = makeToggle("Click Detectors", 20, Color3.fromRGB(60,130,220))
-local fakeToggle   = makeToggle("Delete Fake Objects", 70, Color3.fromRGB(160,100,30))
-local wraithToggle = makeToggle("Delete Wraith Objects", 120, Color3.fromRGB(80,50,160))
-local wallsToggle  = makeToggle("Delete FakeWalls", 170, Color3.fromRGB(200,120,40))
-local espToggle    = makeToggle("Wraith ESP", 220, Color3.fromRGB(200,80,80))
-local tpButton     = makeToggle("Teleport to Exit", 270, Color3.fromRGB(60,180,100))
+-- Toggles (shifted down by 30 to make room for title)
+local clickToggle  = makeToggle("Click Detectors", 50, Color3.fromRGB(60,130,220))
+local fakeToggle   = makeToggle("Delete Fake Objects", 100, Color3.fromRGB(160,100,30))
+local wraithToggle = makeToggle("Delete Wraith Objects", 150, Color3.fromRGB(80,50,160))
+local wallsToggle  = makeToggle("Delete FakeWalls", 200, Color3.fromRGB(200,120,40))
+local espToggle    = makeToggle("Wraith ESP", 250, Color3.fromRGB(200,80,80))
+local tpButton     = makeToggle("Teleport to Exit", 300, Color3.fromRGB(60,180,100))
 
 -- States
 local clickEnabled, fakeEnabled, wraithEnabled, wallsEnabled, espEnabled = false,false,false,false,false
@@ -193,7 +216,7 @@ local function deleteFakeWalls()
     end
 end
 
--- 👁 ESP (simple legit)
+-- ESP (simple legit)
 local function espWalls()
     local sub = workspace:FindFirstChild("Sublevel")
     local fw = sub and sub:FindFirstChild("Walls") and sub.Walls:FindFirstChild("FakeWalls")
@@ -216,7 +239,7 @@ local function espWalls()
     end
 end
 
--- Loop (no optimization)
+-- Loop
 RunService.Heartbeat:Connect(function()
     if clickEnabled then fireClicks() end
     if fakeEnabled then deleteFake() end
