@@ -1,0 +1,202 @@
+-- LocalScript inside StarterGui or StarterPlayerScripts
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
+
+local RANGE = math.huge
+
+-- ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ClickDetectorFirer"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player.PlayerGui
+
+-- Main Frame
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 230, 0, 280) -- slightly smaller now
+mainFrame.Position = UDim2.new(0, 20, 0.5, -140)
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8)
+
+-- Title Bar
+local titleBar = Instance.new("Frame")
+titleBar.Size = UDim2.new(1, 0, 0, 36)
+titleBar.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+titleBar.BorderSizePixel = 0
+titleBar.Parent = mainFrame
+
+Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 8)
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, 0, 1, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "8:20PM"
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.TextSize = 14
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.Parent = titleBar
+
+-- Helper
+local function makeToggle(labelText, yPos, color)
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -20, 0, 16)
+    label.Position = UDim2.new(0, 10, 0, yPos)
+    label.BackgroundTransparency = 1
+    label.Text = labelText
+    label.TextColor3 = Color3.fromRGB(160, 160, 160)
+    label.TextSize = 11
+    label.Font = Enum.Font.Gotham
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = mainFrame
+
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -20, 0, 28)
+    btn.Position = UDim2.new(0, 10, 0, yPos + 18)
+    btn.BackgroundColor3 = color
+    btn.BorderSizePixel = 0
+    btn.Text = "Enable"
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.TextSize = 13
+    btn.Font = Enum.Font.GothamBold
+    btn.Parent = mainFrame
+
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+
+    return btn
+end
+
+-- Info Labels
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(1, -20, 0, 20)
+statusLabel.Position = UDim2.new(0, 10, 0, 44)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = "Status: OFF"
+statusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+statusLabel.TextSize = 12
+statusLabel.Font = Enum.Font.Gotham
+statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+statusLabel.Parent = mainFrame
+
+local rangeLabel = Instance.new("TextLabel")
+rangeLabel.Size = UDim2.new(1, -20, 0, 16)
+rangeLabel.Position = UDim2.new(0, 10, 0, 62)
+rangeLabel.BackgroundTransparency = 1
+rangeLabel.Text = "Range: " .. (RANGE == math.huge and "Infinite" or RANGE .. " studs")
+rangeLabel.TextColor3 = Color3.fromRGB(130, 130, 130)
+rangeLabel.TextSize = 11
+rangeLabel.Font = Enum.Font.Gotham
+rangeLabel.TextXAlignment = Enum.TextXAlignment.Left
+rangeLabel.Parent = mainFrame
+
+local countLabel = Instance.new("TextLabel")
+countLabel.Size = UDim2.new(1, -20, 0, 16)
+countLabel.Position = UDim2.new(0, 10, 0, 78)
+countLabel.BackgroundTransparency = 1
+countLabel.Text = "Fired: 0"
+countLabel.TextColor3 = Color3.fromRGB(130, 130, 130)
+countLabel.TextSize = 11
+countLabel.Font = Enum.Font.Gotham
+countLabel.TextXAlignment = Enum.TextXAlignment.Left
+countLabel.Parent = mainFrame
+
+-- Toggles (fixed positions)
+local clickToggle  = makeToggle("Click Detectors",      100, Color3.fromRGB(60, 130, 220))
+local fakeToggle   = makeToggle("Delete Fake Objects",  152, Color3.fromRGB(160, 100, 30))
+local wraithToggle = makeToggle("Delete Wraith Objects", 204, Color3.fromRGB(80, 50, 160))
+
+-- State
+local clickEnabled  = false
+local fakeEnabled   = false
+local wraithEnabled = false
+local fireCount     = 0
+
+local function flipBtn(btn, current, onColor)
+    local new = not current
+    btn.Text = new and "Disable" or "Enable"
+    btn.BackgroundColor3 = new and Color3.fromRGB(200, 60, 60) or onColor
+    return new
+end
+
+clickToggle.MouseButton1Click:Connect(function()
+    clickEnabled = flipBtn(clickToggle, clickEnabled, Color3.fromRGB(60, 130, 220))
+    statusLabel.Text = "Status: " .. (clickEnabled and "ON" or "OFF")
+    statusLabel.TextColor3 = clickEnabled and Color3.fromRGB(100, 220, 100) or Color3.fromRGB(200, 200, 200)
+end)
+
+fakeToggle.MouseButton1Click:Connect(function()
+    fakeEnabled = flipBtn(fakeToggle, fakeEnabled, Color3.fromRGB(160, 100, 30))
+end)
+
+wraithToggle.MouseButton1Click:Connect(function()
+    wraithEnabled = flipBtn(wraithToggle, wraithEnabled, Color3.fromRGB(80, 50, 160))
+end)
+
+-- Functions
+
+local function fireAllClickDetectors()
+    local root = nil
+    local char = player.Character
+    if char then root = char:FindFirstChild("HumanoidRootPart") end
+
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("ClickDetector") then
+            local part = obj.Parent
+            if part and part:IsA("BasePart") then
+                local withinRange = true
+                if root and RANGE ~= math.huge then
+                    withinRange = (root.Position - part.Position).Magnitude <= RANGE
+                end
+                if withinRange then
+                    local ok = pcall(fireclickdetector, obj)
+                    if ok then
+                        fireCount += 1
+                        countLabel.Text = "Fired: " .. fireCount
+                    end
+                end
+            end
+        end
+    end
+end
+
+local LAP_FOLDERS = {"Lap1", "Lap2", "Lap3", "Lap4"}
+
+local function scanAndDeleteKeyword(folder, keyword)
+    if not folder then return end
+    for _, obj in ipairs(folder:GetChildren()) do
+        if string.find(obj.Name:lower(), keyword) then
+            pcall(function() obj:Destroy() end)
+        end
+    end
+end
+
+local function deleteFakeObjects()
+    local sublevel = workspace:FindFirstChild("Sublevel")
+    if not sublevel then return end
+
+    scanAndDeleteKeyword(sublevel, "fake")
+    for _, folderName in ipairs(LAP_FOLDERS) do
+        scanAndDeleteKeyword(sublevel:FindFirstChild(folderName), "fake")
+    end
+end
+
+local function deleteWraithObjects()
+    local sublevel = workspace:FindFirstChild("Sublevel")
+    if not sublevel then return end
+
+    for _, folderName in ipairs(LAP_FOLDERS) do
+        scanAndDeleteKeyword(sublevel:FindFirstChild(folderName), "wraith")
+    end
+end
+
+-- Main loop
+RunService.Heartbeat:Connect(function()
+    if clickEnabled  then fireAllClickDetectors() end
+    if fakeEnabled   then deleteFakeObjects()     end
+    if wraithEnabled then deleteWraithObjects()   end
+end)
