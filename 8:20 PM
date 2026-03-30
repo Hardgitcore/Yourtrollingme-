@@ -4,7 +4,10 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
 
-local RANGE = math.huge
+local firedCount = 0
+local espTagged = {}       -- [object] = Highlight
+local espHighlights = {}   -- flat list for cleanup
+local espConnections = {}  -- listener connections to disconnect on ESP off
 
 -- ScreenGui
 local screenGui = Instance.new("ScreenGui")
@@ -31,10 +34,8 @@ titleBar.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 titleBar.BorderSizePixel = 0
 titleBar.Parent = mainFrame
 
-local titleCorner = Instance.new("UICorner", titleBar)
-titleCorner.CornerRadius = UDim.new(0, 8)
+Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 8)
 
--- Fix title bar bottom (remove rounded corners at bottom)
 local titleBarBottom = Instance.new("Frame")
 titleBarBottom.Size = UDim2.new(1, 0, 0, 8)
 titleBarBottom.Position = UDim2.new(0, 0, 1, -8)
@@ -46,7 +47,7 @@ local titleIcon = Instance.new("TextLabel")
 titleIcon.Size = UDim2.new(0, 30, 1, 0)
 titleIcon.Position = UDim2.new(0, 8, 0, 0)
 titleIcon.BackgroundTransparency = 1
-titleIcon.Text = "⚡"
+titleIcon.Text = "?"
 titleIcon.TextColor3 = Color3.fromRGB(255, 200, 80)
 titleIcon.TextSize = 16
 titleIcon.Font = Enum.Font.GothamBold
@@ -74,7 +75,7 @@ versionLabel.Font = Enum.Font.Gotham
 versionLabel.TextXAlignment = Enum.TextXAlignment.Right
 versionLabel.Parent = titleBar
 
--- Info Labels (fixed positioning)
+-- Info Labels
 local statusLabel = Instance.new("TextLabel")
 statusLabel.Size = UDim2.new(1, -20, 0, 20)
 statusLabel.Position = UDim2.new(0, 10, 0, 46)
@@ -97,7 +98,7 @@ countLabel.Font = Enum.Font.Gotham
 countLabel.TextXAlignment = Enum.TextXAlignment.Left
 countLabel.Parent = mainFrame
 
--- Helper with proper spacing
+-- Helper
 local function makeToggle(labelText, yPos, color)
     local label = Instance.new("TextLabel")
     label.Size = UDim2.new(1, -20, 0, 16)
@@ -122,19 +123,16 @@ local function makeToggle(labelText, yPos, color)
     btn.Parent = mainFrame
 
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
-
     return btn
 end
 
--- Toggles (properly spaced)
-local clickToggle  = makeToggle("Click Detectors", 92, Color3.fromRGB(60,130,220))
-local fakeToggle   = makeToggle("Delete Fake Objects", 146, Color3.fromRGB(160,100,30))
+local clickToggle  = makeToggle("Click Detectors",       92,  Color3.fromRGB(60,130,220))
+local fakeToggle   = makeToggle("Delete Fake Objects",   146, Color3.fromRGB(160,100,30))
 local wraithToggle = makeToggle("Delete Wraith Objects", 200, Color3.fromRGB(80,50,160))
-local wallsToggle  = makeToggle("Delete FakeWalls", 254, Color3.fromRGB(200,120,40))
-local espToggle    = makeToggle("Wraith ESP", 308, Color3.fromRGB(200,80,80))
-local tpButton     = makeToggle("Teleport to Exit", 362, Color3.fromRGB(60,180,100))
+local wallsToggle  = makeToggle("Delete FakeWalls",      254, Color3.fromRGB(200,120,40))
+local espToggle    = makeToggle("Wraith ESP",            308, Color3.fromRGB(200,80,80))
+local tpButton     = makeToggle("Teleport to Exit",      362, Color3.fromRGB(60,180,100))
 
--- States
 local clickEnabled, fakeEnabled, wraithEnabled, wallsEnabled, espEnabled = false,false,false,false,false
 
 local function flip(btn, state, color)
@@ -144,8 +142,179 @@ local function flip(btn, state, color)
     return state
 end
 
+-- ============================================================
+-- ESP CORE
+-- ============================================================
+
+-- Highlight one object (Model or BasePart), parent to screenGui so it
+-- survives the object being destroyed
+local function highlightObject(obj)
+    if espTagged[obj] then return end  -- already tagged
+
+    local h = Instance.new("Highlight")
+    h.Name = "WraithESP"
+    h.FillColor = Color3.fromRGB(255, 80, 80)
+    h.FillTransparency = 0.5
+    h.OutlineColor = Color3.fromRGB(255, 80, 80)
+    h.OutlineTransparency = 0
+    h.Adornee = obj
+    h.Parent = screenGui   -- survives obj:Destroy()
+
+    espTagged[obj] = h
+    table.insert(espHighlights, h)
+end
+
+-- Scan a container (WraithWalls folder) and highlight everything inside
+local function scanContainer(container)
+    for _, obj in ipairs(container:GetDescendants()) do
+        if obj:IsA("Model") or obj:IsA("BasePart") then
+            highlightObject(obj)
+        end
+    end
+    -- Also highlight the container's direct children that are parts/models
+    if container:IsA("Model") or container:IsA("BasePart") then
+        highlightObject(container)
+    end
+end
+
+-- Watch a single WraithWalls container for new descendants
+local function watchContainer(container)
+    local conn = container.DescendantAdded:Connect(function(obj)
+        if not espEnabled then return end
+        if obj:IsA("Model") or obj:IsA("BasePart") then
+            -- Small wait so the object is fully added before highlighting
+            task.defer(function()
+                if espEnabled then
+                    highlightObject(obj)
+                    -- If wraithEnabled, delete it too
+                    if wraithEnabled then
+                        pcall(function() obj:Destroy() end)
+                    end
+                end
+            end)
+        end
+    end)
+    table.insert(espConnections, conn)
+end
+
+-- Find all WraithWalls containers inside a given Sublevel
+local function findWraithContainers(sub)
+    local found = {}
+
+    local function checkParent(parent)
+        -- parent > Walls > WraithWalls
+        local walls = parent:FindFirstChild("Walls")
+        if walls then
+            local ww = walls:FindFirstChild("WraithWalls")
+            if ww then table.insert(found, ww) end
+        end
+        -- parent > WraithWalls directly
+        local ww2 = parent:FindFirstChild("WraithWalls")
+        if ww2 then table.insert(found, ww2) end
+    end
+
+    checkParent(sub)
+
+    for _, child in ipairs(sub:GetChildren()) do
+        -- LAP folders, numbered folders, any Folder
+        local n = child.Name:lower()
+        if child:IsA("Folder") or n:find("lap") or n:find("level") or n:find("room") then
+            checkParent(child)
+        end
+    end
+
+    return found
+end
+
+-- Disconnect all ESP listeners and clear highlights
+local function clearESP()
+    for _, c in ipairs(espConnections) do
+        pcall(function() c:Disconnect() end)
+    end
+    espConnections = {}
+
+    for _, h in ipairs(espHighlights) do
+        pcall(function() h:Destroy() end)
+    end
+    espHighlights = {}
+    espTagged = {}
+end
+
+-- Full attach: scan existing containers + watch for new descendants
+-- Also watches the Sublevel itself for new Walls/LAP folders appearing
+local function attachESP(sub)
+    -- Scan + watch currently existing containers
+    for _, container in ipairs(findWraithContainers(sub)) do
+        scanContainer(container)
+        watchContainer(container)
+    end
+
+    -- Watch Sublevel for new children (e.g. new Walls or LAP folder added mid-game)
+    local subConn = sub.DescendantAdded:Connect(function(obj)
+        if not espEnabled then return end
+
+        -- If a new WraithWalls folder appears anywhere under the sublevel
+        if obj.Name == "WraithWalls" then
+            task.defer(function()
+                if espEnabled then
+                    scanContainer(obj)
+                    watchContainer(obj)
+                end
+            end)
+        end
+    end)
+    table.insert(espConnections, subConn)
+end
+
+-- ============================================================
+-- WORKSPACE WATCHER
+-- Handles the Sublevel being replaced entirely (new round/map load)
+-- ============================================================
+local subLevelWatcher = nil
+
+local function startSubLevelWatcher()
+    if subLevelWatcher then
+        pcall(function() subLevelWatcher:Disconnect() end)
+        subLevelWatcher = nil
+    end
+
+    -- Attach to current Sublevel if it exists
+    local sub = workspace:FindFirstChild("Sublevel")
+    if sub and espEnabled then
+        attachESP(sub)
+    end
+
+    -- Watch for Sublevel being added (new round starts)
+    subLevelWatcher = workspace.ChildAdded:Connect(function(child)
+        if child.Name == "Sublevel" then
+            task.defer(function()
+                -- Re-clear so old highlights don't stack
+                clearESP()
+                if espEnabled then
+                    attachESP(child)
+                    -- Re-attach the watcher since clearESP disconnected it
+                    startSubLevelWatcher()
+                end
+                -- If wraith delete is on, kill all wraith objects in new sublevel
+                if wraithEnabled then
+                    for _, obj in ipairs(child:GetDescendants()) do
+                        if obj.Name:lower():find("wraith") then
+                            pcall(function() obj:Destroy() end)
+                        end
+                    end
+                end
+            end)
+        end
+    end)
+end
+
+-- ============================================================
+-- TOGGLE CONNECTIONS
+-- ============================================================
+
 clickToggle.MouseButton1Click:Connect(function()
     clickEnabled = flip(clickToggle, clickEnabled, Color3.fromRGB(60,130,220))
+    statusLabel.Text = "Status: " .. (clickEnabled and "ON" or "OFF")
 end)
 
 fakeToggle.MouseButton1Click:Connect(function()
@@ -162,9 +331,19 @@ end)
 
 espToggle.MouseButton1Click:Connect(function()
     espEnabled = flip(espToggle, espEnabled, Color3.fromRGB(200,80,80))
+
+    if espEnabled then
+        startSubLevelWatcher()
+    else
+        -- Disconnect everything and remove highlights
+        if subLevelWatcher then
+            pcall(function() subLevelWatcher:Disconnect() end)
+            subLevelWatcher = nil
+        end
+        clearESP()
+    end
 end)
 
--- TP (fixed)
 tpButton.MouseButton1Click:Connect(function()
     local char = player.Character
     if not char then return end
@@ -178,18 +357,23 @@ tpButton.MouseButton1Click:Connect(function()
             root.CFrame = exit.CFrame + Vector3.new(0,5,0)
         elseif exit:IsA("Model") then
             local part = exit.PrimaryPart or exit:FindFirstChildWhichIsA("BasePart")
-            if part then
-                root.CFrame = part.CFrame + Vector3.new(0,5,0)
-            end
+            if part then root.CFrame = part.CFrame + Vector3.new(0,5,0) end
         end
     end
 end)
 
--- Functions
+-- ============================================================
+-- HEARTBEAT FUNCTIONS
+-- ============================================================
+
 local function fireClicks()
     for _, obj in ipairs(workspace:GetDescendants()) do
         if obj:IsA("ClickDetector") then
-            pcall(fireclickdetector, obj)
+            local ok = pcall(fireclickdetector, obj)
+            if ok then
+                firedCount = firedCount + 1
+                countLabel.Text = "Fired: " .. firedCount
+            end
         end
     end
 end
@@ -216,7 +400,9 @@ end
 
 local function deleteFakeWalls()
     local sub = workspace:FindFirstChild("Sublevel")
-    local fw = sub and sub:FindFirstChild("Walls") and sub.Walls:FindFirstChild("FakeWalls")
+    if not sub then return end
+    local walls = sub:FindFirstChild("Walls")
+    local fw = walls and walls:FindFirstChild("FakeWalls")
     if fw then
         for _, v in ipairs(fw:GetChildren()) do
             pcall(function() v:Destroy() end)
@@ -224,34 +410,24 @@ local function deleteFakeWalls()
     end
 end
 
--- ESP (simple legit)
-local function espWalls()
-    local sub = workspace:FindFirstChild("Sublevel")
-    local fw = sub and sub:FindFirstChild("Walls") and sub.Walls:FindFirstChild("WraithWalls")
-    if not fw then return end
-
-    for _, obj in ipairs(fw:GetDescendants()) do
-        if obj:IsA("Model") then
-            if not obj:FindFirstChild("ESP") then
-                local h = Instance.new("Highlight")
-                h.Name = "ESP"
-                h.FillColor = Color3.fromRGB(255,80,80)
-                h.FillTransparency = 0.6
-                h.OutlineTransparency = 0
-                h.Adornee = obj
-                h.Parent = obj
-            end
-
-            obj.Transparency = 0.5
-        end
-    end
-end
-
--- Loop
 RunService.Heartbeat:Connect(function()
-    if clickEnabled then fireClicks() end
-    if fakeEnabled then deleteFake() end
+    if clickEnabled  then fireClicks() end
+    if fakeEnabled   then deleteFake() end
     if wraithEnabled then deleteWraith() end
-    if wallsEnabled then deleteFakeWalls() end
-    if espEnabled then espWalls() end
+    if wallsEnabled  then deleteFakeWalls() end
+end)
+
+-- Start sublevel watcher on load in case Sublevel already exists
+-- (ESP listener only activates once espEnabled is true via toggle,
+--  but the workspace watcher always runs to catch new Sublevels for wraith delete)
+workspace.ChildAdded:Connect(function(child)
+    if child.Name == "Sublevel" and wraithEnabled then
+        task.defer(function()
+            for _, obj in ipairs(child:GetDescendants()) do
+                if obj.Name:lower():find("wraith") then
+                    pcall(function() obj:Destroy() end)
+                end
+            end
+        end)
+    end
 end)
