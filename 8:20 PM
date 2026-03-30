@@ -34,11 +34,63 @@ Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 8)
 local titleLabel = Instance.new("TextLabel")
 titleLabel.Size = UDim2.new(1, 0, 1, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "🖱 Click Detector Firer"
+titleLabel.Text = "8:20 PM"
 titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleLabel.TextSize = 14
 titleLabel.Font = Enum.Font.GothamBold
 titleLabel.Parent = titleBar
+
+-- Helper
+local function makeToggle(labelText, yPos, color)
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -20, 0, 16)
+    label.Position = UDim2.new(0, 10, 0, yPos)
+    label.BackgroundTransparency = 1
+    label.Text = labelText
+    label.TextColor3 = Color3.fromRGB(160, 160, 160)
+    label.TextSize = 11
+    label.Font = Enum.Font.Gotham
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = mainFrame
+
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -20, 0, 28)
+    btn.Position = UDim2.new(0, 10, 0, yPos + 18)
+    btn.BackgroundColor3 = color
+    btn.BorderSizePixel = 0
+    btn.Text = "Enable"
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.TextSize = 13
+    btn.Font = Enum.Font.GothamBold
+    btn.Parent = mainFrame
+
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+
+    return btn
+end
+
+-- Info Labels
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(1, -20, 0, 20)
+statusLabel.Position = UDim2.new(0, 10, 0, 44)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = "Status: OFF"
+statusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+statusLabel.TextSize = 12
+statusLabel.Font = Enum.Font.Gotham
+statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+statusLabel.Parent = mainFrame
+
+local countLabel = Instance.new("TextLabel")
+countLabel.Size = UDim2.new(1, -20, 0, 16)
+countLabel.Position = UDim2.new(0, 10, 0, 62)
+countLabel.BackgroundTransparency = 1
+countLabel.Text = "Fired: 0"
+countLabel.TextColor3 = Color3.fromRGB(130, 130, 130)
+countLabel.TextSize = 11
+countLabel.Font = Enum.Font.Gotham
+countLabel.TextXAlignment = Enum.TextXAlignment.Left
+countLabel.Parent = mainFrame
 
 -- Toggles
 local clickToggle  = makeToggle("Click Detectors", 20, Color3.fromRGB(60,130,220))
