@@ -252,7 +252,7 @@ local function buildEPParts()
         part.Name = "EntityPrevention"
         part.Anchored = true
         part.CanCollide = false
-        part.Transparency = 0
+        part.Transparency = 1
         part.CastShadow = false
         part.Parent = model
 
