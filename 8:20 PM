@@ -5,9 +5,18 @@ local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
 
 local firedCount = 0
-local espTagged = {}       -- [object] = Highlight
-local espHighlights = {}   -- flat list for cleanup
-local espConnections = {}  -- listener connections to disconnect on ESP off
+local espTagged = {}
+local espHighlights = {}
+local espConnections = {}
+local hiddenChars = {}
+local hideConnections = {}
+local playerAddedConn = nil
+local epParts = {}
+local subLevelWatcher = nil
+
+local EP_COUNT  = 8
+local EP_RADIUS = 4
+local EP_SIZE   = Vector3.new(4, 6, 4)
 
 -- ScreenGui
 local screenGui = Instance.new("ScreenGui")
@@ -17,14 +26,13 @@ screenGui.Parent = player.PlayerGui
 
 -- Main Frame
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 230, 0, 474)  -- increased height for new toggle
-mainFrame.Position = UDim2.new(0, 20, 0.5, -237)
+mainFrame.Size = UDim2.new(0, 230, 0, 528)
+mainFrame.Position = UDim2.new(0, 20, 0.5, -264)
 mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 mainFrame.BorderSizePixel = 0
 mainFrame.Active = true
 mainFrame.Draggable = true
 mainFrame.Parent = screenGui
-
 Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8)
 
 -- Title Bar
@@ -33,7 +41,6 @@ titleBar.Size = UDim2.new(1, 0, 0, 36)
 titleBar.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 titleBar.BorderSizePixel = 0
 titleBar.Parent = mainFrame
-
 Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 8)
 
 local titleBarBottom = Instance.new("Frame")
@@ -75,7 +82,7 @@ versionLabel.Font = Enum.Font.Gotham
 versionLabel.TextXAlignment = Enum.TextXAlignment.Right
 versionLabel.Parent = titleBar
 
--- Info Labels
+-- Status / Count
 local statusLabel = Instance.new("TextLabel")
 statusLabel.Size = UDim2.new(1, -20, 0, 20)
 statusLabel.Position = UDim2.new(0, 10, 0, 46)
@@ -98,7 +105,7 @@ countLabel.Font = Enum.Font.Gotham
 countLabel.TextXAlignment = Enum.TextXAlignment.Left
 countLabel.Parent = mainFrame
 
--- Helper
+-- Toggle helper
 local function makeToggle(labelText, yPos, color)
     local label = Instance.new("TextLabel")
     label.Size = UDim2.new(1, -20, 0, 16)
@@ -121,20 +128,26 @@ local function makeToggle(labelText, yPos, color)
     btn.TextSize = 13
     btn.Font = Enum.Font.GothamBold
     btn.Parent = mainFrame
-
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
     return btn
 end
 
-local clickToggle  = makeToggle("Click Detectors",       92,  Color3.fromRGB(60,130,220))
-local fakeToggle   = makeToggle("Delete Fake Objects",   146, Color3.fromRGB(160,100,30))
-local wraithToggle = makeToggle("Delete Wraith Objects", 200, Color3.fromRGB(80,50,160))
-local wallsToggle  = makeToggle("Delete FakeWalls",      254, Color3.fromRGB(200,120,40))
-local espToggle    = makeToggle("Wraith ESP",            308, Color3.fromRGB(200,80,80))
-local tpButton     = makeToggle("Teleport to Exit",      362, Color3.fromRGB(60,180,100))
-local hideToggle   = makeToggle("Hide Players",          416, Color3.fromRGB(40,140,160))
+local clickToggle  = makeToggle("Click Detectors",            92,  Color3.fromRGB(60,130,220))
+local fakeToggle   = makeToggle("Delete Fake Objects",        146, Color3.fromRGB(160,100,30))
+local wraithToggle = makeToggle("Delete Wraith Objects",      200, Color3.fromRGB(80,50,160))
+local wallsToggle  = makeToggle("Delete FakeWalls",           254, Color3.fromRGB(200,120,40))
+local espToggle    = makeToggle("Wraith ESP",                 308, Color3.fromRGB(200,80,80))
+local tpButton     = makeToggle("Teleport to Exit",           362, Color3.fromRGB(60,180,100))
+local hideToggle   = makeToggle("Hide Players",               416, Color3.fromRGB(40,140,160))
+local epToggle     = makeToggle("Entity Prevention Bubble (testing)",   470, Color3.fromRGB(80,180,140))
 
-local clickEnabled, fakeEnabled, wraithEnabled, wallsEnabled, espEnabled, hideEnabled = false,false,false,false,false,false
+local clickEnabled   = false
+local fakeEnabled    = false
+local wraithEnabled  = false
+local wallsEnabled   = false
+local espEnabled     = false
+local hideEnabled    = false
+local epEnabled      = false
 
 local function flip(btn, state, color)
     state = not state
@@ -144,65 +157,35 @@ local function flip(btn, state, color)
 end
 
 -- ============================================================
--- HIDE PLAYERS CORE
+-- HIDE PLAYERS
 -- ============================================================
-
--- Store original transparency values so we can restore them
-local hiddenParts = {}  -- [BasePart] = { originalTransparency, originalLocalTransparency }
 
 local function setCharacterVisible(char, visible)
     if not char then return end
     for _, part in ipairs(char:GetDescendants()) do
-        if part:IsA("BasePart") or part:IsA("MeshPart") or part:IsA("SpecialMesh") then
-            if visible then
-                -- Restore saved transparency
-                if hiddenParts[part] then
-                    part.Transparency = hiddenParts[part]
-                    hiddenParts[part] = nil
-                end
-            else
-                -- Save and hide
-                if not hiddenParts[part] then
-                    hiddenParts[part] = part.Transparency
-                end
-                part.Transparency = 1
-            end
+        if part:IsA("BasePart") then
+            part.LocalTransparencyModifier = visible and 0 or 1
         end
-        -- Hide accessories / hats
-        if part:IsA("Decal") or part:IsA("Texture") then
-            if visible then
-                if hiddenParts[part] then
-                    part.Transparency = hiddenParts[part]
-                    hiddenParts[part] = nil
-                end
-            else
-                if not hiddenParts[part] then
-                    hiddenParts[part] = part.Transparency
-                end
-                part.Transparency = 1
-            end
+        if part:IsA("Humanoid") then
+            part.DisplayDistanceType  = visible
+                and Enum.HumanoidDisplayDistanceType.Viewer
+                or  Enum.HumanoidDisplayDistanceType.None
+            part.NameDisplayDistance   = visible and 100 or 0
+            part.HealthDisplayDistance = visible and 100 or 0
         end
     end
 end
 
--- Connections per other player for hide feature
-local hideConnections = {}
-
 local function applyHideToPlayer(p)
-    if p == player then return end  -- never hide local player
-
-    -- Hide current character if it exists
+    if p == player then return end
     if p.Character then
         setCharacterVisible(p.Character, false)
     end
-
-    -- Hide future characters (respawn)
     if hideConnections[p] then
         pcall(function() hideConnections[p]:Disconnect() end)
     end
     hideConnections[p] = p.CharacterAdded:Connect(function(char)
         if hideEnabled then
-            -- Wait a frame for the character to fully load
             task.defer(function()
                 setCharacterVisible(char, false)
             end)
@@ -221,36 +204,50 @@ local function restorePlayer(p)
     end
 end
 
-local playerAddedConn = nil
-
 local function enableHidePlayers()
-    -- Hide all currently connected players
     for _, p in ipairs(Players:GetPlayers()) do
         applyHideToPlayer(p)
     end
-
-    -- Hide players who join later
     playerAddedConn = Players.PlayerAdded:Connect(function(p)
-        if hideEnabled then
-            applyHideToPlayer(p)
-        end
+        if hideEnabled then applyHideToPlayer(p) end
     end)
 end
 
 local function disableHidePlayers()
-    -- Restore all players
     for _, p in ipairs(Players:GetPlayers()) do
         restorePlayer(p)
     end
-
-    -- Disconnect join listener
     if playerAddedConn then
         pcall(function() playerAddedConn:Disconnect() end)
         playerAddedConn = nil
     end
+end
 
-    -- Clear any remaining hidden part records
-    hiddenParts = {}
+-- ============================================================
+-- ENTITY PREVENTION BUBBLE
+-- ============================================================
+
+local function buildEPParts()
+    for _, p in ipairs(epParts) do pcall(function() p:Destroy() end) end
+    epParts = {}
+    for i = 1, EP_COUNT do
+        local part = Instance.new("Part")
+        part.Name = "EntityPrevention"
+        part.Size = 10
+        part.Anchored = true
+        part.CanCollide = false
+        part.Transparency = 0
+        part.CastShadow = false
+        part.Parent = workspace
+        epParts[i] = part
+    end
+end
+
+local function destroyEPParts()
+    for _, p in ipairs(epParts) do
+        pcall(function() p:Destroy() end)
+    end
+    epParts = {}
 end
 
 -- ============================================================
@@ -259,7 +256,6 @@ end
 
 local function highlightObject(obj)
     if espTagged[obj] then return end
-
     local h = Instance.new("Highlight")
     h.Name = "WraithESP"
     h.FillColor = Color3.fromRGB(255, 80, 80)
@@ -268,7 +264,6 @@ local function highlightObject(obj)
     h.OutlineTransparency = 0
     h.Adornee = obj
     h.Parent = workspace
-
     espTagged[obj] = h
     table.insert(espHighlights, h)
 end
@@ -354,9 +349,8 @@ local function attachESP(sub)
 end
 
 -- ============================================================
--- WORKSPACE WATCHER
+-- SUBLEVEL WATCHER
 -- ============================================================
-local subLevelWatcher = nil
 
 local function startSubLevelWatcher()
     if subLevelWatcher then
@@ -425,14 +419,20 @@ tpButton.MouseButton1Click:Connect(function()
     local char = player.Character
     if not char then return end
     local root = char:FindFirstChild("HumanoidRootPart")
-    local sub = workspace:FindFirstChild("Sublevel")
+    if not root then return end
+
+    local sub  = workspace:FindFirstChild("Sublevel")
     local exit = sub and sub:FindFirstChild("Exit")
-    if root and exit then
+    local ep   = exit and exit:FindFirstChild("EntityPrevention")
+
+    if ep and ep:IsA("BasePart") then
+        root.CFrame = CFrame.new(ep.Position + Vector3.new(0, 5, 0))
+    elseif exit then
         if exit:IsA("BasePart") then
-            root.CFrame = exit.CFrame + Vector3.new(0,5,0)
+            root.CFrame = exit.CFrame + Vector3.new(0, 5, 0)
         elseif exit:IsA("Model") then
             local part = exit.PrimaryPart or exit:FindFirstChildWhichIsA("BasePart")
-            if part then root.CFrame = part.CFrame + Vector3.new(0,5,0) end
+            if part then root.CFrame = part.CFrame + Vector3.new(0, 5, 0) end
         end
     end
 end)
@@ -446,8 +446,17 @@ hideToggle.MouseButton1Click:Connect(function()
     end
 end)
 
+epToggle.MouseButton1Click:Connect(function()
+    epEnabled = flip(epToggle, epEnabled, Color3.fromRGB(80,180,140))
+    if epEnabled then
+        buildEPParts()
+    else
+        destroyEPParts()
+    end
+end)
+
 -- ============================================================
--- HEARTBEAT FUNCTIONS
+-- HEARTBEAT
 -- ============================================================
 
 local function fireClicks()
@@ -495,12 +504,29 @@ local function deleteFakeWalls()
 end
 
 RunService.Heartbeat:Connect(function()
-    if clickEnabled  then fireClicks() end
-    if fakeEnabled   then deleteFake() end
-    if wraithEnabled then deleteWraith() end
+    if clickEnabled  then fireClicks()      end
+    if fakeEnabled   then deleteFake()      end
+    if wraithEnabled then deleteWraith()    end
     if wallsEnabled  then deleteFakeWalls() end
+
+    if epEnabled and #epParts > 0 then
+        local char = player.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if root then
+            for i, part in ipairs(epParts) do
+                local angle  = (2 * math.pi / EP_COUNT) * (i - 1)
+                local offset = Vector3.new(
+                    math.cos(angle) * EP_RADIUS,
+                    0,
+                    math.sin(angle) * EP_RADIUS
+                )
+                part.CFrame = CFrame.new(root.Position + offset)
+            end
+        end
+    end
 end)
 
+-- Wraith delete on new Sublevel load
 workspace.ChildAdded:Connect(function(child)
     if child.Name == "Sublevel" and wraithEnabled then
         task.defer(function()
