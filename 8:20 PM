@@ -139,7 +139,7 @@ local wallsToggle  = makeToggle("Delete FakeWalls",           254, Color3.fromRG
 local espToggle    = makeToggle("Wraith ESP",                 308, Color3.fromRGB(200,80,80))
 local tpButton     = makeToggle("Teleport to Exit",           362, Color3.fromRGB(60,180,100))
 local hideToggle   = makeToggle("Hide Players",               416, Color3.fromRGB(40,140,160))
-local epToggle     = makeToggle("Entity Prevention Bubble",   470, Color3.fromRGB(80,180,140))
+local epToggle     = makeToggle("Entity Prevention Bubble (fixing)",   470, Color3.fromRGB(80,180,140))
 
 local clickEnabled   = false
 local fakeEnabled    = false
