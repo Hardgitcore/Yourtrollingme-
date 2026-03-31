@@ -227,28 +227,100 @@ end
 -- ENTITY PREVENTION BUBBLE
 -- ============================================================
 
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local epParts = {}
+
+local BOX_SIZE = Vector3.new(12, 12, 12)
+local THICKNESS = 1
+
 local function buildEPParts()
-    for _, p in ipairs(epParts) do pcall(function() p:Destroy() end) end
+    -- clear old
+    for _, m in ipairs(epParts) do
+        pcall(function() m:Destroy() end)
+    end
     epParts = {}
-    for i = 1, EP_COUNT do
+
+    local function createSide(sideName)
+        local model = Instance.new("Model")
+        model.Name = "Exit"
+        model.Parent = workspace
+
         local part = Instance.new("Part")
         part.Name = "EntityPrevention"
-        part.Size = 10
         part.Anchored = true
         part.CanCollide = false
         part.Transparency = 0
         part.CastShadow = false
-        part.Parent = workspace
-        epParts[i] = part
+        part.Parent = model
+
+        model.PrimaryPart = part
+
+        table.insert(epParts, model)
+        return model
     end
+
+    createSide("Top")
+    createSide("Bottom")
+    createSide("Front")
+    createSide("Back")
+    createSide("Left")
+    createSide("Right")
 end
 
 local function destroyEPParts()
-    for _, p in ipairs(epParts) do
-        pcall(function() p:Destroy() end)
+    for _, m in ipairs(epParts) do
+        pcall(function() m:Destroy() end)
     end
     epParts = {}
 end
+
+-- build once
+buildEPParts()
+
+-- follow player
+RunService.RenderStepped:Connect(function()
+    local char = player.Character
+    if not char then return end
+
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+
+    local cf = root.CFrame
+    local half = BOX_SIZE / 2
+
+    for i, model in ipairs(epParts) do
+        local part = model.PrimaryPart
+        if not part then continue end
+
+        if i == 1 then -- Top
+            part.Size = Vector3.new(BOX_SIZE.X, THICKNESS, BOX_SIZE.Z)
+            model:SetPrimaryPartCFrame(cf * CFrame.new(0, half.Y, 0))
+
+        elseif i == 2 then -- Bottom
+            part.Size = Vector3.new(BOX_SIZE.X, THICKNESS, BOX_SIZE.Z)
+            model:SetPrimaryPartCFrame(cf * CFrame.new(0, -half.Y, 0))
+
+        elseif i == 3 then -- Front
+            part.Size = Vector3.new(BOX_SIZE.X, BOX_SIZE.Y, THICKNESS)
+            model:SetPrimaryPartCFrame(cf * CFrame.new(0, 0, -half.Z))
+
+        elseif i == 4 then -- Back
+            part.Size = Vector3.new(BOX_SIZE.X, BOX_SIZE.Y, THICKNESS)
+            model:SetPrimaryPartCFrame(cf * CFrame.new(0, 0, half.Z))
+
+        elseif i == 5 then -- Left
+            part.Size = Vector3.new(THICKNESS, BOX_SIZE.Y, BOX_SIZE.Z)
+            model:SetPrimaryPartCFrame(cf * CFrame.new(-half.X, 0, 0))
+
+        elseif i == 6 then -- Right
+            part.Size = Vector3.new(THICKNESS, BOX_SIZE.Y, BOX_SIZE.Z)
+            model:SetPrimaryPartCFrame(cf * CFrame.new(half.X, 0, 0))
+        end
+    end
+end)
 
 -- ============================================================
 -- ESP CORE
