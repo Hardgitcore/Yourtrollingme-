@@ -139,7 +139,7 @@ local wallsToggle  = makeToggle("Delete FakeWalls",           254, Color3.fromRG
 local espToggle    = makeToggle("Wraith ESP",                 308, Color3.fromRGB(200,80,80))
 local tpButton     = makeToggle("Teleport to Exit",           362, Color3.fromRGB(60,180,100))
 local hideToggle   = makeToggle("Hide Players",               416, Color3.fromRGB(40,140,160))
-local epToggle     = makeToggle("Entity Prevention Bubble (testing)",   470, Color3.fromRGB(80,180,140))
+local epToggle     = makeToggle("Entity Prevention Bubble",   470, Color3.fromRGB(80,180,140))
 
 local clickEnabled   = false
 local fakeEnabled    = false
@@ -226,101 +226,9 @@ end
 -- ============================================================
 -- ENTITY PREVENTION BUBBLE
 -- ============================================================
-
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-
-local player = Players.LocalPlayer
-local epParts = {}
-
-local BOX_SIZE = Vector3.new(12, 12, 12)
-local THICKNESS = 1
-
-local function buildEPParts()
-    -- clear old
-    for _, m in ipairs(epParts) do
-        pcall(function() m:Destroy() end)
-    end
-    epParts = {}
-
-    local function createSide(sideName)
-        local model = Instance.new("Model")
-        model.Name = "Exit"
-        model.Parent = workspace
-
-        local part = Instance.new("Part")
-        part.Name = "EntityPrevention"
-        part.Anchored = true
-        part.CanCollide = false
-        part.Transparency = 1
-        part.CastShadow = false
-        part.Parent = model
-
-        model.PrimaryPart = part
-
-        table.insert(epParts, model)
-        return model
-    end
-
-    createSide("Top")
-    createSide("Bottom")
-    createSide("Front")
-    createSide("Back")
-    createSide("Left")
-    createSide("Right")
-end
-
-local function destroyEPParts()
-    for _, m in ipairs(epParts) do
-        pcall(function() m:Destroy() end)
-    end
-    epParts = {}
-end
-
--- build once
-buildEPParts()
-
--- follow player
-RunService.RenderStepped:Connect(function()
-    local char = player.Character
-    if not char then return end
-
-    local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then return end
-
-    local cf = root.CFrame
-    local half = BOX_SIZE / 2
-
-    for i, model in ipairs(epParts) do
-        local part = model.PrimaryPart
-        if not part then continue end
-
-        if i == 1 then -- Top
-            part.Size = Vector3.new(BOX_SIZE.X, THICKNESS, BOX_SIZE.Z)
-            model:SetPrimaryPartCFrame(cf * CFrame.new(0, half.Y, 0))
-
-        elseif i == 2 then -- Bottom
-            part.Size = Vector3.new(BOX_SIZE.X, THICKNESS, BOX_SIZE.Z)
-            model:SetPrimaryPartCFrame(cf * CFrame.new(0, -half.Y, 0))
-
-        elseif i == 3 then -- Front
-            part.Size = Vector3.new(BOX_SIZE.X, BOX_SIZE.Y, THICKNESS)
-            model:SetPrimaryPartCFrame(cf * CFrame.new(0, 0, -half.Z))
-
-        elseif i == 4 then -- Back
-            part.Size = Vector3.new(BOX_SIZE.X, BOX_SIZE.Y, THICKNESS)
-            model:SetPrimaryPartCFrame(cf * CFrame.new(0, 0, half.Z))
-
-        elseif i == 5 then -- Left
-            part.Size = Vector3.new(THICKNESS, BOX_SIZE.Y, BOX_SIZE.Z)
-            model:SetPrimaryPartCFrame(cf * CFrame.new(-half.X, 0, 0))
-
-        elseif i == 6 then -- Right
-            part.Size = Vector3.new(THICKNESS, BOX_SIZE.Y, BOX_SIZE.Z)
-            model:SetPrimaryPartCFrame(cf * CFrame.new(half.X, 0, 0))
-        end
-    end
-end)
+-- hey thanks for stumbling here yes i used ai.
+-- feel free to tweak anything here for now just wait.
+-- once i find away to fix this it will be very op
 
 -- ============================================================
 -- ESP CORE
