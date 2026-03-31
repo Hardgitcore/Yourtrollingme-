@@ -17,8 +17,8 @@ screenGui.Parent = player.PlayerGui
 
 -- Main Frame
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 230, 0, 420)
-mainFrame.Position = UDim2.new(0, 20, 0.5, -210)
+mainFrame.Size = UDim2.new(0, 230, 0, 474)  -- increased height for new toggle
+mainFrame.Position = UDim2.new(0, 20, 0.5, -237)
 mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 mainFrame.BorderSizePixel = 0
 mainFrame.Active = true
@@ -132,8 +132,9 @@ local wraithToggle = makeToggle("Delete Wraith Objects", 200, Color3.fromRGB(80,
 local wallsToggle  = makeToggle("Delete FakeWalls",      254, Color3.fromRGB(200,120,40))
 local espToggle    = makeToggle("Wraith ESP",            308, Color3.fromRGB(200,80,80))
 local tpButton     = makeToggle("Teleport to Exit",      362, Color3.fromRGB(60,180,100))
+local hideToggle   = makeToggle("Hide Players",          416, Color3.fromRGB(40,140,160))
 
-local clickEnabled, fakeEnabled, wraithEnabled, wallsEnabled, espEnabled = false,false,false,false,false
+local clickEnabled, fakeEnabled, wraithEnabled, wallsEnabled, espEnabled, hideEnabled = false,false,false,false,false,false
 
 local function flip(btn, state, color)
     state = not state
@@ -143,13 +144,121 @@ local function flip(btn, state, color)
 end
 
 -- ============================================================
+-- HIDE PLAYERS CORE
+-- ============================================================
+
+-- Store original transparency values so we can restore them
+local hiddenParts = {}  -- [BasePart] = { originalTransparency, originalLocalTransparency }
+
+local function setCharacterVisible(char, visible)
+    if not char then return end
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") or part:IsA("MeshPart") or part:IsA("SpecialMesh") then
+            if visible then
+                -- Restore saved transparency
+                if hiddenParts[part] then
+                    part.Transparency = hiddenParts[part]
+                    hiddenParts[part] = nil
+                end
+            else
+                -- Save and hide
+                if not hiddenParts[part] then
+                    hiddenParts[part] = part.Transparency
+                end
+                part.Transparency = 1
+            end
+        end
+        -- Hide accessories / hats
+        if part:IsA("Decal") or part:IsA("Texture") then
+            if visible then
+                if hiddenParts[part] then
+                    part.Transparency = hiddenParts[part]
+                    hiddenParts[part] = nil
+                end
+            else
+                if not hiddenParts[part] then
+                    hiddenParts[part] = part.Transparency
+                end
+                part.Transparency = 1
+            end
+        end
+    end
+end
+
+-- Connections per other player for hide feature
+local hideConnections = {}
+
+local function applyHideToPlayer(p)
+    if p == player then return end  -- never hide local player
+
+    -- Hide current character if it exists
+    if p.Character then
+        setCharacterVisible(p.Character, false)
+    end
+
+    -- Hide future characters (respawn)
+    if hideConnections[p] then
+        pcall(function() hideConnections[p]:Disconnect() end)
+    end
+    hideConnections[p] = p.CharacterAdded:Connect(function(char)
+        if hideEnabled then
+            -- Wait a frame for the character to fully load
+            task.defer(function()
+                setCharacterVisible(char, false)
+            end)
+        end
+    end)
+end
+
+local function restorePlayer(p)
+    if p == player then return end
+    if p.Character then
+        setCharacterVisible(p.Character, true)
+    end
+    if hideConnections[p] then
+        pcall(function() hideConnections[p]:Disconnect() end)
+        hideConnections[p] = nil
+    end
+end
+
+local playerAddedConn = nil
+
+local function enableHidePlayers()
+    -- Hide all currently connected players
+    for _, p in ipairs(Players:GetPlayers()) do
+        applyHideToPlayer(p)
+    end
+
+    -- Hide players who join later
+    playerAddedConn = Players.PlayerAdded:Connect(function(p)
+        if hideEnabled then
+            applyHideToPlayer(p)
+        end
+    end)
+end
+
+local function disableHidePlayers()
+    -- Restore all players
+    for _, p in ipairs(Players:GetPlayers()) do
+        restorePlayer(p)
+    end
+
+    -- Disconnect join listener
+    if playerAddedConn then
+        pcall(function() playerAddedConn:Disconnect() end)
+        playerAddedConn = nil
+    end
+
+    -- Clear any remaining hidden part records
+    hiddenParts = {}
+end
+
+-- ============================================================
 -- ESP CORE
 -- ============================================================
 
--- Highlight one object (Model or BasePart), parent to screenGui so it
--- survives the object being destroyed
 local function highlightObject(obj)
-    if espTagged[obj] then return end  -- already tagged
+    if espTagged[obj] then return end
 
     local h = Instance.new("Highlight")
     h.Name = "WraithESP"
@@ -158,35 +267,30 @@ local function highlightObject(obj)
     h.OutlineColor = Color3.fromRGB(255, 80, 80)
     h.OutlineTransparency = 0
     h.Adornee = obj
-    h.Parent = screenGui   -- survives obj:Destroy()
+    h.Parent = workspace
 
     espTagged[obj] = h
     table.insert(espHighlights, h)
 end
 
--- Scan a container (WraithWalls folder) and highlight everything inside
 local function scanContainer(container)
     for _, obj in ipairs(container:GetDescendants()) do
         if obj:IsA("Model") or obj:IsA("BasePart") then
             highlightObject(obj)
         end
     end
-    -- Also highlight the container's direct children that are parts/models
     if container:IsA("Model") or container:IsA("BasePart") then
         highlightObject(container)
     end
 end
 
--- Watch a single WraithWalls container for new descendants
 local function watchContainer(container)
     local conn = container.DescendantAdded:Connect(function(obj)
         if not espEnabled then return end
         if obj:IsA("Model") or obj:IsA("BasePart") then
-            -- Small wait so the object is fully added before highlighting
             task.defer(function()
                 if espEnabled then
                     highlightObject(obj)
-                    -- If wraithEnabled, delete it too
                     if wraithEnabled then
                         pcall(function() obj:Destroy() end)
                     end
@@ -197,42 +301,32 @@ local function watchContainer(container)
     table.insert(espConnections, conn)
 end
 
--- Find all WraithWalls containers inside a given Sublevel
 local function findWraithContainers(sub)
     local found = {}
-
     local function checkParent(parent)
-        -- parent > Walls > WraithWalls
         local walls = parent:FindFirstChild("Walls")
         if walls then
             local ww = walls:FindFirstChild("WraithWalls")
             if ww then table.insert(found, ww) end
         end
-        -- parent > WraithWalls directly
         local ww2 = parent:FindFirstChild("WraithWalls")
         if ww2 then table.insert(found, ww2) end
     end
-
     checkParent(sub)
-
     for _, child in ipairs(sub:GetChildren()) do
-        -- LAP folders, numbered folders, any Folder
         local n = child.Name:lower()
         if child:IsA("Folder") or n:find("lap") or n:find("level") or n:find("room") then
             checkParent(child)
         end
     end
-
     return found
 end
 
--- Disconnect all ESP listeners and clear highlights
 local function clearESP()
     for _, c in ipairs(espConnections) do
         pcall(function() c:Disconnect() end)
     end
     espConnections = {}
-
     for _, h in ipairs(espHighlights) do
         pcall(function() h:Destroy() end)
     end
@@ -240,20 +334,13 @@ local function clearESP()
     espTagged = {}
 end
 
--- Full attach: scan existing containers + watch for new descendants
--- Also watches the Sublevel itself for new Walls/LAP folders appearing
 local function attachESP(sub)
-    -- Scan + watch currently existing containers
     for _, container in ipairs(findWraithContainers(sub)) do
         scanContainer(container)
         watchContainer(container)
     end
-
-    -- Watch Sublevel for new children (e.g. new Walls or LAP folder added mid-game)
     local subConn = sub.DescendantAdded:Connect(function(obj)
         if not espEnabled then return end
-
-        -- If a new WraithWalls folder appears anywhere under the sublevel
         if obj.Name == "WraithWalls" then
             task.defer(function()
                 if espEnabled then
@@ -268,7 +355,6 @@ end
 
 -- ============================================================
 -- WORKSPACE WATCHER
--- Handles the Sublevel being replaced entirely (new round/map load)
 -- ============================================================
 local subLevelWatcher = nil
 
@@ -277,25 +363,18 @@ local function startSubLevelWatcher()
         pcall(function() subLevelWatcher:Disconnect() end)
         subLevelWatcher = nil
     end
-
-    -- Attach to current Sublevel if it exists
     local sub = workspace:FindFirstChild("Sublevel")
     if sub and espEnabled then
         attachESP(sub)
     end
-
-    -- Watch for Sublevel being added (new round starts)
     subLevelWatcher = workspace.ChildAdded:Connect(function(child)
         if child.Name == "Sublevel" then
             task.defer(function()
-                -- Re-clear so old highlights don't stack
                 clearESP()
                 if espEnabled then
                     attachESP(child)
-                    -- Re-attach the watcher since clearESP disconnected it
                     startSubLevelWatcher()
                 end
-                -- If wraith delete is on, kill all wraith objects in new sublevel
                 if wraithEnabled then
                     for _, obj in ipairs(child:GetDescendants()) do
                         if obj.Name:lower():find("wraith") then
@@ -331,11 +410,9 @@ end)
 
 espToggle.MouseButton1Click:Connect(function()
     espEnabled = flip(espToggle, espEnabled, Color3.fromRGB(200,80,80))
-
     if espEnabled then
         startSubLevelWatcher()
     else
-        -- Disconnect everything and remove highlights
         if subLevelWatcher then
             pcall(function() subLevelWatcher:Disconnect() end)
             subLevelWatcher = nil
@@ -347,11 +424,9 @@ end)
 tpButton.MouseButton1Click:Connect(function()
     local char = player.Character
     if not char then return end
-
     local root = char:FindFirstChild("HumanoidRootPart")
     local sub = workspace:FindFirstChild("Sublevel")
     local exit = sub and sub:FindFirstChild("Exit")
-
     if root and exit then
         if exit:IsA("BasePart") then
             root.CFrame = exit.CFrame + Vector3.new(0,5,0)
@@ -359,6 +434,15 @@ tpButton.MouseButton1Click:Connect(function()
             local part = exit.PrimaryPart or exit:FindFirstChildWhichIsA("BasePart")
             if part then root.CFrame = part.CFrame + Vector3.new(0,5,0) end
         end
+    end
+end)
+
+hideToggle.MouseButton1Click:Connect(function()
+    hideEnabled = flip(hideToggle, hideEnabled, Color3.fromRGB(40,140,160))
+    if hideEnabled then
+        enableHidePlayers()
+    else
+        disableHidePlayers()
     end
 end)
 
@@ -417,9 +501,6 @@ RunService.Heartbeat:Connect(function()
     if wallsEnabled  then deleteFakeWalls() end
 end)
 
--- Start sublevel watcher on load in case Sublevel already exists
--- (ESP listener only activates once espEnabled is true via toggle,
---  but the workspace watcher always runs to catch new Sublevels for wraith delete)
 workspace.ChildAdded:Connect(function(child)
     if child.Name == "Sublevel" and wraithEnabled then
         task.defer(function()
