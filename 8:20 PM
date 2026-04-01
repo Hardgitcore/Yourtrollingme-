@@ -13,6 +13,8 @@ local hideConnections = {}
 local playerAddedConn = nil
 local epParts = {}
 local subLevelWatcher = nil
+local exitPromptConnection = nil
+local originalPromptSettings = {}
 
 local EP_COUNT  = 8
 local EP_RADIUS = 4
@@ -64,7 +66,7 @@ local titleLabel = Instance.new("TextLabel")
 titleLabel.Size = UDim2.new(1, -80, 1, 0)
 titleLabel.Position = UDim2.new(0, 36, 0, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "April fools mah boi not working lol go use another script!"
+titleLabel.Text = "8:20 PM Hub"
 titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleLabel.TextSize = 14
 titleLabel.Font = Enum.Font.GothamBold
@@ -75,7 +77,7 @@ local versionLabel = Instance.new("TextLabel")
 versionLabel.Size = UDim2.new(0, 40, 1, 0)
 versionLabel.Position = UDim2.new(1, -48, 0, 0)
 versionLabel.BackgroundTransparency = 1
-versionLabel.Text = "v1.1"
+versionLabel.Text = "v1.2"
 versionLabel.TextColor3 = Color3.fromRGB(100, 100, 100)
 versionLabel.TextSize = 11
 versionLabel.Font = Enum.Font.Gotham
@@ -138,7 +140,7 @@ local wraithToggle = makeToggle("Delete Wraith Objects",      200, Color3.fromRG
 local wallsToggle  = makeToggle("Delete FakeWalls",           254, Color3.fromRGB(200,120,40))
 local espToggle    = makeToggle("Wraith ESP",                 308, Color3.fromRGB(200,80,80))
 local tpButton     = makeToggle("Teleport to Exit",           362, Color3.fromRGB(60,180,100))
-local promptButton = makeToggle("Trigger Exit Prompt",        416, Color3.fromRGB(100,200,150))
+local promptToggle = makeToggle("Instant Exit Prompt",        416, Color3.fromRGB(100,200,150))
 local hideToggle   = makeToggle("Hide Players",               470, Color3.fromRGB(40,140,160))
 local epToggle     = makeToggle("Entity Prevention Bubble",   524, Color3.fromRGB(80,180,140))
 
@@ -149,6 +151,7 @@ local wallsEnabled   = false
 local espEnabled     = false
 local hideEnabled    = false
 local epEnabled      = false
+local instantPromptEnabled = false
 
 local function flip(btn, state, color)
     state = not state
@@ -227,10 +230,29 @@ end
 -- ============================================================
 -- ENTITY PREVENTION BUBBLE
 -- ============================================================
--- take whatever you need you baka
--- still reading this
--- go away dude
--- FINE
+
+function buildEPParts()
+    destroyEPParts()
+    for i = 1, EP_COUNT do
+        local part = Instance.new("Part")
+        part.Name = "EPBubble_" .. i
+        part.Size = EP_SIZE
+        part.Anchored = true
+        part.CanCollide = true
+        part.Transparency = 0.7
+        part.Material = Enum.Material.ForceField
+        part.Color = Color3.fromRGB(80, 255, 200)
+        part.Parent = workspace
+        table.insert(epParts, part)
+    end
+end
+
+function destroyEPParts()
+    for _, part in ipairs(epParts) do
+        pcall(function() part:Destroy() end)
+    end
+    epParts = {}
+end
 
 -- ============================================================
 -- ESP CORE
@@ -327,7 +349,7 @@ local function attachESP(sub)
             end)
         end
     end)
-    table.insert(espConnections, subConn)
+    table.insert(espConnections, conn)
 end
 
 -- ============================================================
@@ -358,6 +380,11 @@ local function startSubLevelWatcher()
                         end
                     end
                 end
+                -- Re-apply instant prompt if enabled
+                if instantPromptEnabled then
+                    task.wait(0.5)
+                    applyInstantPrompt()
+                end
             end)
         end
     end)
@@ -366,24 +393,24 @@ end
 -- ============================================================
 -- EXIT HELPERS
 -- ============================================================
--- Hierarchy: workspace > Sublevel > Exit (Model) > Exit (Part) > ProximityPrompt
+-- Hierarchy: workspace.Sublevel.Exit.exit.ProximityPrompt
 
 local function findExitPart()
     local sub = workspace:FindFirstChild("Sublevel")
     if not sub then return nil end
     
     local exitModel = sub:FindFirstChild("Exit")
-    if not exitModel or not exitModel:IsA("Model") then return nil end
+    if not exitModel then return nil end
     
-    -- Look for a part named "Exit" inside the Exit model
-    local exitPart = exitModel:FindFirstChild("Exit")
-    if exitPart and exitPart:IsA("Part") then
+    -- Look for part named "exit" (lowercase based on your hierarchy)
+    local exitPart = exitModel:FindFirstChild("exit")
+    if exitPart and exitPart:IsA("BasePart") then
         return exitPart
     end
     
-    -- Fallback: find any Part in the Exit model
+    -- Fallback: case-insensitive search
     for _, child in ipairs(exitModel:GetChildren()) do
-        if child:IsA("Part") then
+        if child:IsA("BasePart") and child.Name:lower() == "exit" then
             return child
         end
     end
@@ -393,22 +420,81 @@ end
 
 local function findExitProximityPrompt()
     local exitPart = findExitPart()
-    if not exitPart then return nil end
+    if not exitPart then 
+        warn("Exit part not found. Looking for: workspace.Sublevel.Exit.exit")
+        return nil 
+    end
     
-    -- ProximityPrompt should be directly inside the Exit part
+    -- ProximityPrompt should be directly inside the exit part
     local prompt = exitPart:FindFirstChildOfClass("ProximityPrompt")
     if prompt then
         return prompt
     end
     
-    -- Fallback: search descendants
-    for _, child in ipairs(exitPart:GetDescendants()) do
-        if child:IsA("ProximityPrompt") then
-            return child
-        end
+    warn("ProximityPrompt not found in exit part:", exitPart:GetFullName())
+    return nil
+end
+
+-- ============================================================
+-- INSTANT PROXIMITY PROMPT SYSTEM
+-- ============================================================
+
+local function applyInstantPrompt()
+    local prompt = findExitProximityPrompt()
+    if not prompt then
+        countLabel.Text = "Exit prompt not found!"
+        return false
     end
     
-    return nil
+    -- Store original settings if not already stored
+    if not originalPromptSettings[prompt] then
+        originalPromptSettings[prompt] = {
+            MaxActivationDistance = prompt.MaxActivationDistance,
+            HoldDuration = prompt.HoldDuration,
+            RequiresLineOfSight = prompt.RequiresLineOfSight
+        }
+    end
+    
+    -- Apply instant settings
+    prompt.MaxActivationDistance = math.huge
+    prompt.HoldDuration = 0
+    prompt.RequiresLineOfSight = false
+    
+    countLabel.Text = "Instant Prompt: ON"
+    return true
+end
+
+local function restorePrompt()
+    local prompt = findExitProximityPrompt()
+    if not prompt then return end
+    
+    -- Restore original settings
+    if originalPromptSettings[prompt] then
+        prompt.MaxActivationDistance = originalPromptSettings[prompt].MaxActivationDistance
+        prompt.HoldDuration = originalPromptSettings[prompt].HoldDuration
+        prompt.RequiresLineOfSight = originalPromptSettings[prompt].RequiresLineOfSight
+        originalPromptSettings[prompt] = nil
+    end
+    
+    countLabel.Text = "Instant Prompt: OFF"
+end
+
+local function watchForExitPrompt()
+    if exitPromptConnection then
+        pcall(function() exitPromptConnection:Disconnect() end)
+    end
+    
+    exitPromptConnection = workspace.DescendantAdded:Connect(function(descendant)
+        if not instantPromptEnabled then return end
+        
+        if descendant:IsA("ProximityPrompt") then
+            local part = descendant.Parent
+            if part and part.Name:lower() == "exit" then
+                task.wait(0.1)
+                applyInstantPrompt()
+            end
+        end
+    end)
 end
 
 -- ============================================================
@@ -446,7 +532,6 @@ espToggle.MouseButton1Click:Connect(function()
 end)
 
 -- TELEPORT TO EXIT
--- Hierarchy: workspace.Sublevel.Exit (Model).Exit (Part)
 tpButton.MouseButton1Click:Connect(function()
     local char = player.Character
     if not char then 
@@ -466,20 +551,25 @@ tpButton.MouseButton1Click:Connect(function()
         countLabel.Text = "Teleported to Exit!"
     else
         countLabel.Text = "Exit not found!"
-        warn("Exit hierarchy not found. Expected: workspace.Sublevel.Exit (Model).Exit (Part)")
+        warn("Exit not found at: workspace.Sublevel.Exit.exit")
     end
 end)
 
--- TRIGGER EXIT PROMPT
--- ProximityPrompt is inside the Exit part
-promptButton.MouseButton1Click:Connect(function()
-    local prompt = findExitProximityPrompt()
-    if prompt then
-        fireproximityprompt(prompt)
-        countLabel.Text = "Exit Prompt Triggered!"
+-- INSTANT EXIT PROMPT TOGGLE
+promptToggle.MouseButton1Click:Connect(function()
+    instantPromptEnabled = flip(promptToggle, instantPromptEnabled, Color3.fromRGB(100,200,150))
+    
+    if instantPromptEnabled then
+        local success = applyInstantPrompt()
+        if success then
+            watchForExitPrompt()
+        end
     else
-        countLabel.Text = "Prompt not found!"
-        warn("ProximityPrompt not found in Exit part. Expected: workspace.Sublevel.Exit (Model).Exit (Part).ProximityPrompt")
+        restorePrompt()
+        if exitPromptConnection then
+            pcall(function() exitPromptConnection:Disconnect() end)
+            exitPromptConnection = nil
+        end
     end
 end)
 
