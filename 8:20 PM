@@ -1,4 +1,4 @@
--- LocalScript APRIL FOOLS LOLLOOLOOL
+-- LocalScript
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
