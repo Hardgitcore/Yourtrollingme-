@@ -26,8 +26,8 @@ screenGui.Parent = player.PlayerGui
 
 -- Main Frame
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 230, 0, 528)
-mainFrame.Position = UDim2.new(0, 20, 0.5, -264)
+mainFrame.Size = UDim2.new(0, 230, 0, 580)
+mainFrame.Position = UDim2.new(0, 20, 0.5, -290)
 mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 mainFrame.BorderSizePixel = 0
 mainFrame.Active = true
@@ -54,7 +54,7 @@ local titleIcon = Instance.new("TextLabel")
 titleIcon.Size = UDim2.new(0, 30, 1, 0)
 titleIcon.Position = UDim2.new(0, 8, 0, 0)
 titleIcon.BackgroundTransparency = 1
-titleIcon.Text = "?"
+titleIcon.Text = "🎮"
 titleIcon.TextColor3 = Color3.fromRGB(255, 200, 80)
 titleIcon.TextSize = 16
 titleIcon.Font = Enum.Font.GothamBold
@@ -64,7 +64,7 @@ local titleLabel = Instance.new("TextLabel")
 titleLabel.Size = UDim2.new(1, -80, 1, 0)
 titleLabel.Position = UDim2.new(0, 36, 0, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "8:20 PM Hub"
+titleLabel.Text = "April fools mah boi not working lol go use another script!"
 titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleLabel.TextSize = 14
 titleLabel.Font = Enum.Font.GothamBold
@@ -75,7 +75,7 @@ local versionLabel = Instance.new("TextLabel")
 versionLabel.Size = UDim2.new(0, 40, 1, 0)
 versionLabel.Position = UDim2.new(1, -48, 0, 0)
 versionLabel.BackgroundTransparency = 1
-versionLabel.Text = "v1.0"
+versionLabel.Text = "v1.1"
 versionLabel.TextColor3 = Color3.fromRGB(100, 100, 100)
 versionLabel.TextSize = 11
 versionLabel.Font = Enum.Font.Gotham
@@ -138,8 +138,9 @@ local wraithToggle = makeToggle("Delete Wraith Objects",      200, Color3.fromRG
 local wallsToggle  = makeToggle("Delete FakeWalls",           254, Color3.fromRGB(200,120,40))
 local espToggle    = makeToggle("Wraith ESP",                 308, Color3.fromRGB(200,80,80))
 local tpButton     = makeToggle("Teleport to Exit",           362, Color3.fromRGB(60,180,100))
-local hideToggle   = makeToggle("Hide Players",               416, Color3.fromRGB(40,140,160))
-local epToggle     = makeToggle("Entity Prevention Bubble (fixing)",   470, Color3.fromRGB(80,180,140))
+local promptButton = makeToggle("Trigger Exit Prompt",        416, Color3.fromRGB(100,200,150))
+local hideToggle   = makeToggle("Hide Players",               470, Color3.fromRGB(40,140,160))
+local epToggle     = makeToggle("Entity Prevention Bubble",   524, Color3.fromRGB(80,180,140))
 
 local clickEnabled   = false
 local fakeEnabled    = false
@@ -226,9 +227,10 @@ end
 -- ============================================================
 -- ENTITY PREVENTION BUBBLE
 -- ============================================================
--- hey thanks for stumbling here yes i used ai.
--- feel free to tweak anything here for now just wait.
--- once i find away to fix this it will be very op
+-- take whatever you need you baka
+-- still reading this
+-- go away dude
+-- FINE
 
 -- ============================================================
 -- ESP CORE
@@ -362,6 +364,54 @@ local function startSubLevelWatcher()
 end
 
 -- ============================================================
+-- EXIT HELPERS
+-- ============================================================
+-- Hierarchy: workspace > Sublevel > Exit (Model) > Exit (Part) > ProximityPrompt
+
+local function findExitPart()
+    local sub = workspace:FindFirstChild("Sublevel")
+    if not sub then return nil end
+    
+    local exitModel = sub:FindFirstChild("Exit")
+    if not exitModel or not exitModel:IsA("Model") then return nil end
+    
+    -- Look for a part named "Exit" inside the Exit model
+    local exitPart = exitModel:FindFirstChild("Exit")
+    if exitPart and exitPart:IsA("Part") then
+        return exitPart
+    end
+    
+    -- Fallback: find any Part in the Exit model
+    for _, child in ipairs(exitModel:GetChildren()) do
+        if child:IsA("Part") then
+            return child
+        end
+    end
+    
+    return nil
+end
+
+local function findExitProximityPrompt()
+    local exitPart = findExitPart()
+    if not exitPart then return nil end
+    
+    -- ProximityPrompt should be directly inside the Exit part
+    local prompt = exitPart:FindFirstChildOfClass("ProximityPrompt")
+    if prompt then
+        return prompt
+    end
+    
+    -- Fallback: search descendants
+    for _, child in ipairs(exitPart:GetDescendants()) do
+        if child:IsA("ProximityPrompt") then
+            return child
+        end
+    end
+    
+    return nil
+end
+
+-- ============================================================
 -- TOGGLE CONNECTIONS
 -- ============================================================
 
@@ -395,25 +445,41 @@ espToggle.MouseButton1Click:Connect(function()
     end
 end)
 
+-- TELEPORT TO EXIT
+-- Hierarchy: workspace.Sublevel.Exit (Model).Exit (Part)
 tpButton.MouseButton1Click:Connect(function()
     local char = player.Character
-    if not char then return end
+    if not char then 
+        countLabel.Text = "No character!"
+        return 
+    end
+    
     local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then return end
+    if not root then 
+        countLabel.Text = "No HumanoidRootPart!"
+        return 
+    end
 
-    local sub  = workspace:FindFirstChild("Sublevel")
-    local exit = sub and sub:FindFirstChild("Exit")
-    local ep   = exit and exit:FindFirstChild("EntityPrevention")
+    local exitPart = findExitPart()
+    if exitPart then
+        root.CFrame = exitPart.CFrame + Vector3.new(0, 5, 0)
+        countLabel.Text = "Teleported to Exit!"
+    else
+        countLabel.Text = "Exit not found!"
+        warn("Exit hierarchy not found. Expected: workspace.Sublevel.Exit (Model).Exit (Part)")
+    end
+end)
 
-    if ep and ep:IsA("BasePart") then
-        root.CFrame = CFrame.new(ep.Position + Vector3.new(0, 5, 0))
-    elseif exit then
-        if exit:IsA("BasePart") then
-            root.CFrame = exit.CFrame + Vector3.new(0, 5, 0)
-        elseif exit:IsA("Model") then
-            local part = exit.PrimaryPart or exit:FindFirstChildWhichIsA("BasePart")
-            if part then root.CFrame = part.CFrame + Vector3.new(0, 5, 0) end
-        end
+-- TRIGGER EXIT PROMPT
+-- ProximityPrompt is inside the Exit part
+promptButton.MouseButton1Click:Connect(function()
+    local prompt = findExitProximityPrompt()
+    if prompt then
+        fireproximityprompt(prompt)
+        countLabel.Text = "Exit Prompt Triggered!"
+    else
+        countLabel.Text = "Prompt not found!"
+        warn("ProximityPrompt not found in Exit part. Expected: workspace.Sublevel.Exit (Model).Exit (Part).ProximityPrompt")
     end
 end)
 
