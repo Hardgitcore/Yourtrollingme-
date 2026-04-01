@@ -26,8 +26,8 @@ screenGui.Parent = player.PlayerGui
 
 -- Main Frame
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 230, 0, 528)
-mainFrame.Position = UDim2.new(0, 20, 0.5, -264)
+mainFrame.Size = UDim2.new(0, 230, 0, 582)
+mainFrame.Position = UDim2.new(0, 20, 0.5, -291)
 mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 mainFrame.BorderSizePixel = 0
 mainFrame.Active = true
@@ -132,28 +132,53 @@ local function makeToggle(labelText, yPos, color)
     return btn
 end
 
-local clickToggle  = makeToggle("Click Detectors",            92,  Color3.fromRGB(60,130,220))
-local fakeToggle   = makeToggle("Delete Fake Objects",        146, Color3.fromRGB(160,100,30))
-local wraithToggle = makeToggle("Delete Wraith Objects",      200, Color3.fromRGB(80,50,160))
-local wallsToggle  = makeToggle("Delete FakeWalls",           254, Color3.fromRGB(200,120,40))
-local espToggle    = makeToggle("Wraith ESP",                 308, Color3.fromRGB(200,80,80))
-local tpButton     = makeToggle("Teleport to Exit",           362, Color3.fromRGB(60,180,100))
-local hideToggle   = makeToggle("Hide Players",               416, Color3.fromRGB(40,140,160))
-local epToggle     = makeToggle("Entity Prevention Bubble (fixing)",   470, Color3.fromRGB(80,180,140))
+local clickToggle  = makeToggle("Click Detectors",                    92,  Color3.fromRGB(60,130,220))
+local fakeToggle   = makeToggle("Delete Fake Objects",                146, Color3.fromRGB(160,100,30))
+local wraithToggle = makeToggle("Delete Wraith Objects",              200, Color3.fromRGB(80,50,160))
+local wallsToggle  = makeToggle("Delete FakeWalls",                   254, Color3.fromRGB(200,120,40))
+local espToggle    = makeToggle("Wraith ESP",                         308, Color3.fromRGB(200,80,80))
+local tpButton     = makeToggle("Teleport to Exit",                   362, Color3.fromRGB(60,180,100))
+local hideToggle   = makeToggle("Hide Players",                       416, Color3.fromRGB(40,140,160))
+local epToggle     = makeToggle("Entity Prevention Bubble (fixing)",  470, Color3.fromRGB(80,180,140))
+local ppToggle     = makeToggle("Trigger Exit ProximityPrompt",       524, Color3.fromRGB(100,60,200))
 
-local clickEnabled   = false
-local fakeEnabled    = false
-local wraithEnabled  = false
-local wallsEnabled   = false
-local espEnabled     = false
-local hideEnabled    = false
-local epEnabled      = false
+local clickEnabled  = false
+local fakeEnabled   = false
+local wraithEnabled = false
+local wallsEnabled  = false
+local espEnabled    = false
+local hideEnabled   = false
+local epEnabled     = false
+local ppEnabled     = false
 
 local function flip(btn, state, color)
     state = not state
     btn.Text = state and "Disable" or "Enable"
     btn.BackgroundColor3 = state and Color3.fromRGB(200,60,60) or color
     return state
+end
+
+-- ============================================================
+-- HELPER: get workspace.Sublevel.Exit.Exit part
+-- ============================================================
+
+local function getExitPart()
+local function getExitPart()
+    local sub = workspace:FindFirstChild("Sublevel")
+    if not sub then return nil end
+    local exitModel = sub:FindFirstChild("Exit")
+    if not exitModel or not exitModel:IsA("Model") then return nil end
+    local exitPart = exitModel:FindFirstChild("Exit")
+    if exitPart and exitPart:IsA("BasePart") then
+        return exitPart
+    end
+    return nil
+end
+
+local function getExitPrompt()
+    local part = getExitPart()
+    if not part then return nil end
+    return part:FindFirstChildWhichIsA("ProximityPrompt")
 end
 
 -- ============================================================
@@ -222,13 +247,6 @@ local function disableHidePlayers()
         playerAddedConn = nil
     end
 end
-
--- ============================================================
--- ENTITY PREVENTION BUBBLE
--- ============================================================
--- hey thanks for stumbling here yes i used ai.
--- feel free to tweak anything here for now just wait.
--- once i find away to fix this it will be very op
 
 -- ============================================================
 -- ESP CORE
@@ -395,25 +413,16 @@ espToggle.MouseButton1Click:Connect(function()
     end
 end)
 
+-- Teleport to Exit — goes to workspace.Sublevel.Exit.Exit part
 tpButton.MouseButton1Click:Connect(function()
     local char = player.Character
     if not char then return end
     local root = char:FindFirstChild("HumanoidRootPart")
     if not root then return end
 
-    local sub  = workspace:FindFirstChild("Sublevel")
-    local exit = sub and sub:FindFirstChild("Exit")
-    local ep   = exit and exit:FindFirstChild("EntityPrevention")
-
-    if ep and ep:IsA("BasePart") then
-        root.CFrame = CFrame.new(ep.Position + Vector3.new(0, 5, 0))
-    elseif exit then
-        if exit:IsA("BasePart") then
-            root.CFrame = exit.CFrame + Vector3.new(0, 5, 0)
-        elseif exit:IsA("Model") then
-            local part = exit.PrimaryPart or exit:FindFirstChildWhichIsA("BasePart")
-            if part then root.CFrame = part.CFrame + Vector3.new(0, 5, 0) end
-        end
+    local exitPart = getExitPart()
+    if exitPart then
+        root.CFrame = exitPart.CFrame + Vector3.new(0, 5, 0)
     end
 end)
 
@@ -433,6 +442,11 @@ epToggle.MouseButton1Click:Connect(function()
     else
         destroyEPParts()
     end
+end)
+
+-- ProximityPrompt toggle — fires it every heartbeat from any distance
+ppToggle.MouseButton1Click:Connect(function()
+    ppEnabled = flip(ppToggle, ppEnabled, Color3.fromRGB(100,60,200))
 end)
 
 -- ============================================================
@@ -488,6 +502,14 @@ RunService.Heartbeat:Connect(function()
     if fakeEnabled   then deleteFake()      end
     if wraithEnabled then deleteWraith()    end
     if wallsEnabled  then deleteFakeWalls() end
+
+    -- Fire ProximityPrompt on Exit part every heartbeat
+    if ppEnabled then
+        local pp = getExitPrompt()
+        if pp then
+            pcall(fireproximityprompt, pp)
+        end
+    end
 
     if epEnabled and #epParts > 0 then
         local char = player.Character
