@@ -1,22 +1,8 @@
--- LocalScript
+-- LocalScript APRIL FOOLS LOLLOOLOOL
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
-
-local firedCount = 0
-local espTagged = {}
-local espHighlights = {}
-local espConnections = {}
-local hiddenChars = {}
-local hideConnections = {}
-local playerAddedConn = nil
-local epParts = {}
-local subLevelWatcher = nil
-
-local EP_COUNT  = 8
-local EP_RADIUS = 4
-local EP_SIZE   = Vector3.new(4, 6, 4)
 
 -- ScreenGui
 local screenGui = Instance.new("ScreenGui")
@@ -26,8 +12,8 @@ screenGui.Parent = player.PlayerGui
 
 -- Main Frame
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 230, 0, 582)
-mainFrame.Position = UDim2.new(0, 20, 0.5, -291)
+mainFrame.Size = UDim2.new(0, 230, 0, 340)
+mainFrame.Position = UDim2.new(0, 20, 0.5, -170)
 mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 mainFrame.BorderSizePixel = 0
 mainFrame.Active = true
@@ -43,49 +29,27 @@ titleBar.BorderSizePixel = 0
 titleBar.Parent = mainFrame
 Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 8)
 
-local titleBarBottom = Instance.new("Frame")
-titleBarBottom.Size = UDim2.new(1, 0, 0, 8)
-titleBarBottom.Position = UDim2.new(0, 0, 1, -8)
-titleBarBottom.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-titleBarBottom.BorderSizePixel = 0
-titleBarBottom.Parent = titleBar
-
-local titleIcon = Instance.new("TextLabel")
-titleIcon.Size = UDim2.new(0, 30, 1, 0)
-titleIcon.Position = UDim2.new(0, 8, 0, 0)
-titleIcon.BackgroundTransparency = 1
-titleIcon.Text = "?"
-titleIcon.TextColor3 = Color3.fromRGB(255, 200, 80)
-titleIcon.TextSize = 16
-titleIcon.Font = Enum.Font.GothamBold
-titleIcon.Parent = titleBar
+-- Fix rounded corners cutting off at bottom of title bar
+local titleBarFix = Instance.new("Frame")
+titleBarFix.Size = UDim2.new(1, 0, 0, 8)
+titleBarFix.Position = UDim2.new(0, 0, 1, -8)
+titleBarFix.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+titleBarFix.BorderSizePixel = 0
+titleBarFix.Parent = titleBar
 
 local titleLabel = Instance.new("TextLabel")
-titleLabel.Size = UDim2.new(1, -80, 1, 0)
-titleLabel.Position = UDim2.new(0, 36, 0, 0)
+titleLabel.Size = UDim2.new(1, 0, 1, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "8:20 PM Hub"
+titleLabel.Text = "APRIL FOOLS LOLOLOOOOL"
 titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleLabel.TextSize = 14
 titleLabel.Font = Enum.Font.GothamBold
-titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 titleLabel.Parent = titleBar
-
-local versionLabel = Instance.new("TextLabel")
-versionLabel.Size = UDim2.new(0, 40, 1, 0)
-versionLabel.Position = UDim2.new(1, -48, 0, 0)
-versionLabel.BackgroundTransparency = 1
-versionLabel.Text = "v1.0"
-versionLabel.TextColor3 = Color3.fromRGB(100, 100, 100)
-versionLabel.TextSize = 11
-versionLabel.Font = Enum.Font.Gotham
-versionLabel.TextXAlignment = Enum.TextXAlignment.Right
-versionLabel.Parent = titleBar
 
 -- Status / Count
 local statusLabel = Instance.new("TextLabel")
 statusLabel.Size = UDim2.new(1, -20, 0, 20)
-statusLabel.Position = UDim2.new(0, 10, 0, 46)
+statusLabel.Position = UDim2.new(0, 10, 0, 44)
 statusLabel.BackgroundTransparency = 1
 statusLabel.Text = "Status: OFF"
 statusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
@@ -96,7 +60,7 @@ statusLabel.Parent = mainFrame
 
 local countLabel = Instance.new("TextLabel")
 countLabel.Size = UDim2.new(1, -20, 0, 16)
-countLabel.Position = UDim2.new(0, 10, 0, 66)
+countLabel.Position = UDim2.new(0, 10, 0, 62)
 countLabel.BackgroundTransparency = 1
 countLabel.Text = "Fired: 0"
 countLabel.TextColor3 = Color3.fromRGB(130, 130, 130)
@@ -119,7 +83,7 @@ local function makeToggle(labelText, yPos, color)
     label.Parent = mainFrame
 
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, -20, 0, 32)
+    btn.Size = UDim2.new(1, -20, 0, 28)
     btn.Position = UDim2.new(0, 10, 0, yPos + 18)
     btn.BackgroundColor3 = color
     btn.BorderSizePixel = 0
@@ -132,46 +96,44 @@ local function makeToggle(labelText, yPos, color)
     return btn
 end
 
-local clickToggle  = makeToggle("Click Detectors",                    92,  Color3.fromRGB(60,130,220))
-local fakeToggle   = makeToggle("Delete Fake Objects",                146, Color3.fromRGB(160,100,30))
-local wraithToggle = makeToggle("Delete Wraith Objects",              200, Color3.fromRGB(80,50,160))
-local wallsToggle  = makeToggle("Delete FakeWalls",                   254, Color3.fromRGB(200,120,40))
-local espToggle    = makeToggle("Wraith ESP",                         308, Color3.fromRGB(200,80,80))
-local tpButton     = makeToggle("Teleport to Exit",                   362, Color3.fromRGB(60,180,100))
-local hideToggle   = makeToggle("Hide Players",                       416, Color3.fromRGB(40,140,160))
-local epToggle     = makeToggle("Entity Prevention Bubble (fixing)",  470, Color3.fromRGB(80,180,140))
-local ppToggle     = makeToggle("Trigger Exit ProximityPrompt",       524, Color3.fromRGB(100,60,200))
+local clickToggle  = makeToggle("Click Detectors",        90,  Color3.fromRGB(60,130,220))
+local fakeToggle   = makeToggle("Delete Fake Objects",    140, Color3.fromRGB(160,100,30))
+local wraithToggle = makeToggle("Delete Wraith Objects",  190, Color3.fromRGB(80,50,160))
+local wallsToggle  = makeToggle("Delete FakeWalls",       240, Color3.fromRGB(200,120,40))
+local tpButton     = makeToggle("Teleport to Exit",       290, Color3.fromRGB(60,180,100))
 
 local clickEnabled  = false
 local fakeEnabled   = false
 local wraithEnabled = false
 local wallsEnabled  = false
-local espEnabled    = false
-local hideEnabled   = false
-local epEnabled     = false
-local ppEnabled     = false
+local fireCount     = 0
 
-local function flip(btn, state, color)
-    state = not state
-    btn.Text = state and "Disable" or "Enable"
-    btn.BackgroundColor3 = state and Color3.fromRGB(200,60,60) or color
-    return state
+local function flipBtn(btn, current, onColor)
+    local new = not current
+    btn.Text = new and "Disable" or "Enable"
+    btn.BackgroundColor3 = new and Color3.fromRGB(200,60,60) or onColor
+    return new
 end
 
 -- ============================================================
--- HELPER: get workspace.Sublevel.Exit.Exit part
+-- HELPERS
 -- ============================================================
 
-local function getExitPart()
+-- path: workspace.Sublevel.Exit (Model) → Exit (Part)
 local function getExitPart()
     local sub = workspace:FindFirstChild("Sublevel")
     if not sub then return nil end
     local exitModel = sub:FindFirstChild("Exit")
-    if not exitModel or not exitModel:IsA("Model") then return nil end
-    local exitPart = exitModel:FindFirstChild("Exit")
-    if exitPart and exitPart:IsA("BasePart") then
-        return exitPart
+    if not exitModel then return nil end
+    -- it's a Model — find the Part named Exit inside it
+    if exitModel:IsA("Model") then
+        local part = exitModel:FindFirstChild("Exit")
+        if part and part:IsA("BasePart") then return part end
+        -- fallback: any basepart inside
+        return exitModel:FindFirstChildWhichIsA("BasePart")
     end
+    -- fallback if somehow it is a part directly
+    if exitModel:IsA("BasePart") then return exitModel end
     return nil
 end
 
@@ -181,301 +143,43 @@ local function getExitPrompt()
     return part:FindFirstChildWhichIsA("ProximityPrompt")
 end
 
--- ============================================================
--- HIDE PLAYERS
--- ============================================================
+local LAP_FOLDERS = {"Lap1","Lap2","Lap3","Lap4"}
 
-local function setCharacterVisible(char, visible)
-    if not char then return end
-    for _, part in ipairs(char:GetDescendants()) do
-        if part:IsA("BasePart") then
-            part.LocalTransparencyModifier = visible and 0 or 1
-        end
-        if part:IsA("Humanoid") then
-            part.DisplayDistanceType  = visible
-                and Enum.HumanoidDisplayDistanceType.Viewer
-                or  Enum.HumanoidDisplayDistanceType.None
-            part.NameDisplayDistance   = visible and 100 or 0
-            part.HealthDisplayDistance = visible and 100 or 0
-        end
-    end
-end
-
-local function applyHideToPlayer(p)
-    if p == player then return end
-    if p.Character then
-        setCharacterVisible(p.Character, false)
-    end
-    if hideConnections[p] then
-        pcall(function() hideConnections[p]:Disconnect() end)
-    end
-    hideConnections[p] = p.CharacterAdded:Connect(function(char)
-        if hideEnabled then
-            task.defer(function()
-                setCharacterVisible(char, false)
-            end)
-        end
-    end)
-end
-
-local function restorePlayer(p)
-    if p == player then return end
-    if p.Character then
-        setCharacterVisible(p.Character, true)
-    end
-    if hideConnections[p] then
-        pcall(function() hideConnections[p]:Disconnect() end)
-        hideConnections[p] = nil
-    end
-end
-
-local function enableHidePlayers()
-    for _, p in ipairs(Players:GetPlayers()) do
-        applyHideToPlayer(p)
-    end
-    playerAddedConn = Players.PlayerAdded:Connect(function(p)
-        if hideEnabled then applyHideToPlayer(p) end
-    end)
-end
-
-local function disableHidePlayers()
-    for _, p in ipairs(Players:GetPlayers()) do
-        restorePlayer(p)
-    end
-    if playerAddedConn then
-        pcall(function() playerAddedConn:Disconnect() end)
-        playerAddedConn = nil
-    end
-end
-
--- ============================================================
--- ESP CORE
--- ============================================================
-
-local function highlightObject(obj)
-    if espTagged[obj] then return end
-    local h = Instance.new("Highlight")
-    h.Name = "WraithESP"
-    h.FillColor = Color3.fromRGB(255, 80, 80)
-    h.FillTransparency = 0.5
-    h.OutlineColor = Color3.fromRGB(255, 80, 80)
-    h.OutlineTransparency = 0
-    h.Adornee = obj
-    h.Parent = workspace
-    espTagged[obj] = h
-    table.insert(espHighlights, h)
-end
-
-local function scanContainer(container)
-    for _, obj in ipairs(container:GetDescendants()) do
-        if obj:IsA("Model") or obj:IsA("BasePart") then
-            highlightObject(obj)
-        end
-    end
-    if container:IsA("Model") or container:IsA("BasePart") then
-        highlightObject(container)
-    end
-end
-
-local function watchContainer(container)
-    local conn = container.DescendantAdded:Connect(function(obj)
-        if not espEnabled then return end
-        if obj:IsA("Model") or obj:IsA("BasePart") then
-            task.defer(function()
-                if espEnabled then
-                    highlightObject(obj)
-                    if wraithEnabled then
-                        pcall(function() obj:Destroy() end)
-                    end
-                end
-            end)
-        end
-    end)
-    table.insert(espConnections, conn)
-end
-
-local function findWraithContainers(sub)
-    local found = {}
-    local function checkParent(parent)
-        local walls = parent:FindFirstChild("Walls")
-        if walls then
-            local ww = walls:FindFirstChild("WraithWalls")
-            if ww then table.insert(found, ww) end
-        end
-        local ww2 = parent:FindFirstChild("WraithWalls")
-        if ww2 then table.insert(found, ww2) end
-    end
-    checkParent(sub)
-    for _, child in ipairs(sub:GetChildren()) do
-        local n = child.Name:lower()
-        if child:IsA("Folder") or n:find("lap") or n:find("level") or n:find("room") then
-            checkParent(child)
-        end
-    end
-    return found
-end
-
-local function clearESP()
-    for _, c in ipairs(espConnections) do
-        pcall(function() c:Disconnect() end)
-    end
-    espConnections = {}
-    for _, h in ipairs(espHighlights) do
-        pcall(function() h:Destroy() end)
-    end
-    espHighlights = {}
-    espTagged = {}
-end
-
-local function attachESP(sub)
-    for _, container in ipairs(findWraithContainers(sub)) do
-        scanContainer(container)
-        watchContainer(container)
-    end
-    local subConn = sub.DescendantAdded:Connect(function(obj)
-        if not espEnabled then return end
-        if obj.Name == "WraithWalls" then
-            task.defer(function()
-                if espEnabled then
-                    scanContainer(obj)
-                    watchContainer(obj)
-                end
-            end)
-        end
-    end)
-    table.insert(espConnections, subConn)
-end
-
--- ============================================================
--- SUBLEVEL WATCHER
--- ============================================================
-
-local function startSubLevelWatcher()
-    if subLevelWatcher then
-        pcall(function() subLevelWatcher:Disconnect() end)
-        subLevelWatcher = nil
-    end
-    local sub = workspace:FindFirstChild("Sublevel")
-    if sub and espEnabled then
-        attachESP(sub)
-    end
-    subLevelWatcher = workspace.ChildAdded:Connect(function(child)
-        if child.Name == "Sublevel" then
-            task.defer(function()
-                clearESP()
-                if espEnabled then
-                    attachESP(child)
-                    startSubLevelWatcher()
-                end
-                if wraithEnabled then
-                    for _, obj in ipairs(child:GetDescendants()) do
-                        if obj.Name:lower():find("wraith") then
-                            pcall(function() obj:Destroy() end)
-                        end
-                    end
-                end
-            end)
-        end
-    end)
-end
-
--- ============================================================
--- TOGGLE CONNECTIONS
--- ============================================================
-
-clickToggle.MouseButton1Click:Connect(function()
-    clickEnabled = flip(clickToggle, clickEnabled, Color3.fromRGB(60,130,220))
-    statusLabel.Text = "Status: " .. (clickEnabled and "ON" or "OFF")
-end)
-
-fakeToggle.MouseButton1Click:Connect(function()
-    fakeEnabled = flip(fakeToggle, fakeEnabled, Color3.fromRGB(160,100,30))
-end)
-
-wraithToggle.MouseButton1Click:Connect(function()
-    wraithEnabled = flip(wraithToggle, wraithEnabled, Color3.fromRGB(80,50,160))
-end)
-
-wallsToggle.MouseButton1Click:Connect(function()
-    wallsEnabled = flip(wallsToggle, wallsEnabled, Color3.fromRGB(200,120,40))
-end)
-
-espToggle.MouseButton1Click:Connect(function()
-    espEnabled = flip(espToggle, espEnabled, Color3.fromRGB(200,80,80))
-    if espEnabled then
-        startSubLevelWatcher()
-    else
-        if subLevelWatcher then
-            pcall(function() subLevelWatcher:Disconnect() end)
-            subLevelWatcher = nil
-        end
-        clearESP()
-    end
-end)
-
--- Teleport to Exit — goes to workspace.Sublevel.Exit.Exit part
-tpButton.MouseButton1Click:Connect(function()
-    local char = player.Character
-    if not char then return end
-    local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then return end
-
-    local exitPart = getExitPart()
-    if exitPart then
-        root.CFrame = exitPart.CFrame + Vector3.new(0, 5, 0)
-    end
-end)
-
-hideToggle.MouseButton1Click:Connect(function()
-    hideEnabled = flip(hideToggle, hideEnabled, Color3.fromRGB(40,140,160))
-    if hideEnabled then
-        enableHidePlayers()
-    else
-        disableHidePlayers()
-    end
-end)
-
-epToggle.MouseButton1Click:Connect(function()
-    epEnabled = flip(epToggle, epEnabled, Color3.fromRGB(80,180,140))
-    if epEnabled then
-        buildEPParts()
-    else
-        destroyEPParts()
-    end
-end)
-
--- ProximityPrompt toggle — fires it every heartbeat from any distance
-ppToggle.MouseButton1Click:Connect(function()
-    ppEnabled = flip(ppToggle, ppEnabled, Color3.fromRGB(100,60,200))
-end)
-
--- ============================================================
--- HEARTBEAT
--- ============================================================
-
-local function fireClicks()
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj:IsA("ClickDetector") then
-            local ok = pcall(fireclickdetector, obj)
-            if ok then
-                firedCount = firedCount + 1
-                countLabel.Text = "Fired: " .. firedCount
-            end
-        end
-    end
-end
-
-local function deleteFake()
-    local sub = workspace:FindFirstChild("Sublevel")
-    if not sub then return end
-    for _, obj in ipairs(sub:GetDescendants()) do
-        if obj.Name:lower():find("fake") then
+local function scanAndDelete(folder, keyword)
+    if not folder then return end
+    for _, obj in ipairs(folder:GetChildren()) do
+        if obj.Name:lower():find(keyword) then
             pcall(function() obj:Destroy() end)
         end
     end
 end
 
-local function deleteWraith()
+-- ============================================================
+-- FEATURE FUNCTIONS
+-- ============================================================
+
+local function fireAllClickDetectors()
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("ClickDetector") then
+            local ok = pcall(fireclickdetector, obj)
+            if ok then
+                fireCount += 1
+                countLabel.Text = "Fired: " .. fireCount
+            end
+        end
+    end
+end
+
+local function deleteFakeObjects()
+    local sub = workspace:FindFirstChild("Sublevel")
+    if not sub then return end
+    scanAndDelete(sub, "fake")
+    for _, f in ipairs(LAP_FOLDERS) do
+        scanAndDelete(sub:FindFirstChild(f), "fake")
+    end
+end
+
+local function deleteWraithObjects()
     local sub = workspace:FindFirstChild("Sublevel")
     if not sub then return end
     for _, obj in ipairs(sub:GetDescendants()) do
@@ -497,46 +201,46 @@ local function deleteFakeWalls()
     end
 end
 
-RunService.Heartbeat:Connect(function()
-    if clickEnabled  then fireClicks()      end
-    if fakeEnabled   then deleteFake()      end
-    if wraithEnabled then deleteWraith()    end
-    if wallsEnabled  then deleteFakeWalls() end
+-- ============================================================
+-- TOGGLE CONNECTIONS
+-- ============================================================
 
-    -- Fire ProximityPrompt on Exit part every heartbeat
-    if ppEnabled then
-        local pp = getExitPrompt()
-        if pp then
-            pcall(fireproximityprompt, pp)
-        end
-    end
+clickToggle.MouseButton1Click:Connect(function()
+    clickEnabled = flipBtn(clickToggle, clickEnabled, Color3.fromRGB(60,130,220))
+    statusLabel.Text = "Status: " .. (clickEnabled and "ON" or "OFF")
+end)
 
-    if epEnabled and #epParts > 0 then
-        local char = player.Character
-        local root = char and char:FindFirstChild("HumanoidRootPart")
-        if root then
-            for i, part in ipairs(epParts) do
-                local angle  = (2 * math.pi / EP_COUNT) * (i - 1)
-                local offset = Vector3.new(
-                    math.cos(angle) * EP_RADIUS,
-                    0,
-                    math.sin(angle) * EP_RADIUS
-                )
-                part.CFrame = CFrame.new(root.Position + offset)
-            end
-        end
+fakeToggle.MouseButton1Click:Connect(function()
+    fakeEnabled = flipBtn(fakeToggle, fakeEnabled, Color3.fromRGB(160,100,30))
+end)
+
+wraithToggle.MouseButton1Click:Connect(function()
+    wraithEnabled = flipBtn(wraithToggle, wraithEnabled, Color3.fromRGB(80,50,160))
+end)
+
+wallsToggle.MouseButton1Click:Connect(function()
+    wallsEnabled = flipBtn(wallsToggle, wallsEnabled, Color3.fromRGB(200,120,40))
+end)
+
+-- Teleport: workspace.Sublevel.Exit (Model) → Exit (Part)
+tpButton.MouseButton1Click:Connect(function()
+    local char = player.Character
+    if not char then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    local exitPart = getExitPart()
+    if exitPart then
+        root.CFrame = exitPart.CFrame + Vector3.new(0, 5, 0)
     end
 end)
 
--- Wraith delete on new Sublevel load
-workspace.ChildAdded:Connect(function(child)
-    if child.Name == "Sublevel" and wraithEnabled then
-        task.defer(function()
-            for _, obj in ipairs(child:GetDescendants()) do
-                if obj.Name:lower():find("wraith") then
-                    pcall(function() obj:Destroy() end)
-                end
-            end
-        end)
-    end
+-- ============================================================
+-- HEARTBEAT
+-- ============================================================
+
+RunService.Heartbeat:Connect(function()
+    if clickEnabled  then fireAllClickDetectors() end
+    if fakeEnabled   then deleteFakeObjects()     end
+    if wraithEnabled then deleteWraithObjects()   end
+    if wallsEnabled  then deleteFakeWalls()       end
 end)
