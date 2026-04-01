@@ -140,7 +140,7 @@ local wraithToggle = makeToggle("Delete Wraith Objects",      200, Color3.fromRG
 local wallsToggle  = makeToggle("Delete FakeWalls",           254, Color3.fromRGB(200,120,40))
 local espToggle    = makeToggle("Wraith ESP",                 308, Color3.fromRGB(200,80,80))
 local tpButton     = makeToggle("Teleport to Exit",           362, Color3.fromRGB(60,180,100))
-local promptToggle = makeToggle("Instant Exit Prompt",        416, Color3.fromRGB(100,200,150))
+local promptToggle = makeToggle("Tp to exit2 (BETTER)",        416, Color3.fromRGB(100,200,150))
 local hideToggle   = makeToggle("Hide Players",               470, Color3.fromRGB(40,140,160))
 local epToggle     = makeToggle("Entity Prevention Bubble",   524, Color3.fromRGB(80,180,140))
 
@@ -231,28 +231,7 @@ end
 -- ENTITY PREVENTION BUBBLE
 -- ============================================================
 
-function buildEPParts()
-    destroyEPParts()
-    for i = 1, EP_COUNT do
-        local part = Instance.new("Part")
-        part.Name = "EPBubble_" .. i
-        part.Size = EP_SIZE
-        part.Anchored = true
-        part.CanCollide = true
-        part.Transparency = 0.7
-        part.Material = Enum.Material.ForceField
-        part.Color = Color3.fromRGB(80, 255, 200)
-        part.Parent = workspace
-        table.insert(epParts, part)
-    end
-end
-
-function destroyEPParts()
-    for _, part in ipairs(epParts) do
-        pcall(function() part:Destroy() end)
-    end
-    epParts = {}
-end
+-- april fools never coming btw
 
 -- ============================================================
 -- ESP CORE
@@ -436,66 +415,36 @@ local function findExitProximityPrompt()
 end
 
 -- ============================================================
--- INSTANT PROXIMITY PROMPT SYSTEM
+-- Exit 2 but better
 -- ============================================================
 
-local function applyInstantPrompt()
-    local prompt = findExitProximityPrompt()
-    if not prompt then
-        countLabel.Text = "Exit prompt not found!"
-        return false
-    end
+local prompt = workspace.Sublevel.Exit.exit.ProximityPrompt
+
+-- 1. Prep the prompt for interaction
+prompt.MaxActivationDistance = math.huge
+prompt.RequiresLineOfSight = false
+prompt.Enabled = true
+
+-- 2. Teleport to the prompt and trigger it
+local char = game.Players.LocalPlayer.Character
+local hrp = char and char:FindFirstChild("HumanoidRootPart")
+
+if hrp then
+    -- Move character directly onto the prompt
+    hrp.CFrame = prompt.Parent.CFrame
     
-    -- Store original settings if not already stored
-    if not originalPromptSettings[prompt] then
-        originalPromptSettings[prompt] = {
-            MaxActivationDistance = prompt.MaxActivationDistance,
-            HoldDuration = prompt.HoldDuration,
-            RequiresLineOfSight = prompt.RequiresLineOfSight
-        }
-    end
+    -- Small delay to let the physics engine/server catch up
+    task.wait(0.1)
     
-    -- Apply instant settings
-    prompt.MaxActivationDistance = math.huge
-    prompt.HoldDuration = 0
-    prompt.RequiresLineOfSight = false
+    -- Fire the prompt
+    fireproximityprompt(prompt)
     
-    countLabel.Text = "Instant Prompt: ON"
-    return true
+    print("Teleported and triggered prompt successfully.")
+else
+    warn("HumanoidRootPart not found. Are you spawned in?")
 end
 
-local function restorePrompt()
-    local prompt = findExitProximityPrompt()
-    if not prompt then return end
-    
-    -- Restore original settings
-    if originalPromptSettings[prompt] then
-        prompt.MaxActivationDistance = originalPromptSettings[prompt].MaxActivationDistance
-        prompt.HoldDuration = originalPromptSettings[prompt].HoldDuration
-        prompt.RequiresLineOfSight = originalPromptSettings[prompt].RequiresLineOfSight
-        originalPromptSettings[prompt] = nil
-    end
-    
-    countLabel.Text = "Instant Prompt: OFF"
-end
-
-local function watchForExitPrompt()
-    if exitPromptConnection then
-        pcall(function() exitPromptConnection:Disconnect() end)
-    end
-    
-    exitPromptConnection = workspace.DescendantAdded:Connect(function(descendant)
-        if not instantPromptEnabled then return end
-        
-        if descendant:IsA("ProximityPrompt") then
-            local part = descendant.Parent
-            if part and part.Name:lower() == "exit" then
-                task.wait(0.1)
-                applyInstantPrompt()
-            end
-        end
-    end)
-end
+-- gemini core
 
 -- ============================================================
 -- TOGGLE CONNECTIONS
