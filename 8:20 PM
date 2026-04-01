@@ -232,23 +232,8 @@ end
 -- ============================================================
 -- ENTITY PREVENTION BUBBLE
 -- ============================================================
-local function buildEPParts()
-    for i = 1, EP_COUNT do
-        local p = Instance.new("Part")
-        p.Size = EP_SIZE
-        p.Anchored = true
-        p.CanCollide = true
-        p.Transparency = 0.5
-        p.Color = Color3.fromRGB(80,180,140)
-        p.Parent = workspace
-        table.insert(epParts, p)
-    end
-end
 
-local function destroyEPParts()
-    for _, v in ipairs(epParts) do v:Destroy() end
-    epParts = {}
-end
+-- dude this isnt coming april fools
 
 -- ============================================================
 -- TOGGLE CONNECTIONS
