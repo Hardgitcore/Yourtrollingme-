@@ -1,0 +1,172 @@
+-- LocalScript
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local player = Players.LocalPlayer
+
+local stepRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("StepTaken")
+
+local enabled = false
+local stepAmount = 99999999
+local connection = nil
+
+-- ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "StepSpammer"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player.PlayerGui
+
+-- Main Frame
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 220, 0, 200)
+mainFrame.Position = UDim2.new(0, 20, 0, 20)
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8)
+
+-- Title Bar
+local titleBar = Instance.new("Frame")
+titleBar.Size = UDim2.new(1, 0, 0, 36)
+titleBar.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+titleBar.BorderSizePixel = 0
+titleBar.Parent = mainFrame
+
+Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 8)
+
+local titleBarFix = Instance.new("Frame")
+titleBarFix.Size = UDim2.new(1, 0, 0, 8)
+titleBarFix.Position = UDim2.new(0, 0, 1, -8)
+titleBarFix.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+titleBarFix.BorderSizePixel = 0
+titleBarFix.Parent = titleBar
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, -16, 1, 0)
+titleLabel.Position = UDim2.new(0, 12, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "⚡ Step Spammer"
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.TextSize = 13
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.Parent = titleBar
+
+-- Step Count Label
+local stepLabel = Instance.new("TextLabel")
+stepLabel.Size = UDim2.new(1, -20, 0, 16)
+stepLabel.Position = UDim2.new(0, 10, 0, 46)
+stepLabel.BackgroundTransparency = 1
+stepLabel.Text = "Step Amount"
+stepLabel.TextColor3 = Color3.fromRGB(160, 160, 160)
+stepLabel.TextSize = 11
+stepLabel.Font = Enum.Font.Gotham
+stepLabel.TextXAlignment = Enum.TextXAlignment.Left
+stepLabel.Parent = mainFrame
+
+-- Text Box
+local inputBox = Instance.new("TextBox")
+inputBox.Size = UDim2.new(1, -20, 0, 32)
+inputBox.Position = UDim2.new(0, 10, 0, 64)
+inputBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+inputBox.BorderSizePixel = 0
+inputBox.Text = tostring(stepAmount)
+inputBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+inputBox.TextSize = 13
+inputBox.Font = Enum.Font.GothamBold
+inputBox.ClearTextOnFocus = false
+inputBox.Parent = mainFrame
+
+Instance.new("UICorner", inputBox).CornerRadius = UDim.new(0, 6)
+
+-- Status Label
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(1, -20, 0, 16)
+statusLabel.Position = UDim2.new(0, 10, 0, 106)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = "Status: OFF"
+statusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+statusLabel.TextSize = 11
+statusLabel.Font = Enum.Font.Gotham
+statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+statusLabel.Parent = mainFrame
+
+-- Toggle Button
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Size = UDim2.new(1, -20, 0, 36)
+toggleBtn.Position = UDim2.new(0, 10, 0, 128)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(60, 180, 100)
+toggleBtn.BorderSizePixel = 0
+toggleBtn.Text = "Enable"
+toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleBtn.TextSize = 13
+toggleBtn.Font = Enum.Font.GothamBold
+toggleBtn.Parent = mainFrame
+
+Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(0, 6)
+
+-- Send count label
+local sentLabel = Instance.new("TextLabel")
+sentLabel.Size = UDim2.new(1, -20, 0, 16)
+sentLabel.Position = UDim2.new(0, 10, 0, 174)
+sentLabel.BackgroundTransparency = 1
+sentLabel.Text = "Sent: 0"
+sentLabel.TextColor3 = Color3.fromRGB(100, 100, 100)
+sentLabel.TextSize = 11
+sentLabel.Font = Enum.Font.Gotham
+sentLabel.TextXAlignment = Enum.TextXAlignment.Left
+sentLabel.Parent = mainFrame
+
+-- ============================================================
+-- Logic
+-- ============================================================
+
+local sentCount = 0
+
+inputBox.FocusLost:Connect(function()
+    local val = tonumber(inputBox.Text)
+    if val then
+        stepAmount = math.floor(val)
+        inputBox.Text = tostring(stepAmount)
+    else
+        inputBox.Text = tostring(stepAmount)
+    end
+end)
+
+local function startSpam()
+    connection = game:GetService("RunService").Heartbeat:Connect(function()
+        pcall(function()
+            stepRemote:FireServer(stepAmount, false)
+        end)
+        sentCount = sentCount + 1
+        sentLabel.Text = "Sent: " .. sentCount
+    end)
+end
+
+local function stopSpam()
+    if connection then
+        connection:Disconnect()
+        connection = nil
+    end
+end
+
+toggleBtn.MouseButton1Click:Connect(function()
+    enabled = not enabled
+
+    if enabled then
+        toggleBtn.Text = "Disable"
+        toggleBtn.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+        statusLabel.Text = "Status: ON"
+        statusLabel.TextColor3 = Color3.fromRGB(100, 220, 100)
+        startSpam()
+    else
+        toggleBtn.Text = "Enable"
+        toggleBtn.BackgroundColor3 = Color3.fromRGB(60, 180, 100)
+        statusLabel.Text = "Status: OFF"
+        statusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+        stopSpam()
+    end
+end)
