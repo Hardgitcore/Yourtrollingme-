@@ -10,152 +10,334 @@ local espHighlights = {}
 local espConnections = {}
 local hideConnections = {}
 local playerAddedConn = nil
-local epParts = {}
 local subLevelWatcher = nil
-local exitPromptConnection = nil
 
-local EP_COUNT  = 8
-local EP_RADIUS = 4
-local EP_SIZE   = Vector3.new(4, 6, 4)
+local LAP_FOLDERS = {"Lap1","Lap2","Lap3","Lap4"}
 
--- ScreenGui
+-- ============================================================
+-- GUI SETUP
+-- ============================================================
+
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "ClickDetectorFirer"
+screenGui.Name = "EightTwentyHub"
 screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.Parent = player.PlayerGui
 
 -- Main Frame
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 230, 0, 580)
-mainFrame.Position = UDim2.new(0, 20, 0.5, -290)
-mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+mainFrame.Size = UDim2.new(0, 248, 0, 590)
+mainFrame.Position = UDim2.new(0, 16, 0.5, -295)
+mainFrame.BackgroundColor3 = Color3.fromRGB(11, 11, 17)
 mainFrame.BorderSizePixel = 0
 mainFrame.Active = true
 mainFrame.Draggable = true
 mainFrame.Parent = screenGui
-Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8)
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 10)
 
--- Title Bar
+-- Outer glow border
+local outerStroke = Instance.new("UIStroke")
+outerStroke.Color = Color3.fromRGB(0, 210, 255)
+outerStroke.Thickness = 1.2
+outerStroke.Transparency = 0.3
+outerStroke.Parent = mainFrame
+
+-- ── Title Bar ──────────────────────────────────────────────
 local titleBar = Instance.new("Frame")
-titleBar.Size = UDim2.new(1, 0, 0, 36)
-titleBar.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+titleBar.Size = UDim2.new(1, 0, 0, 46)
+titleBar.BackgroundColor3 = Color3.fromRGB(8, 8, 14)
 titleBar.BorderSizePixel = 0
 titleBar.Parent = mainFrame
-Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 8)
+Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 10)
 
-local titleBarBottom = Instance.new("Frame")
-titleBarBottom.Size = UDim2.new(1, 0, 0, 8)
-titleBarBottom.Position = UDim2.new(0, 0, 1, -8)
-titleBarBottom.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-titleBarBottom.BorderSizePixel = 0
-titleBarBottom.Parent = titleBar
+-- square off bottom corners of title bar
+local titleBarSquare = Instance.new("Frame")
+titleBarSquare.Size = UDim2.new(1, 0, 0, 10)
+titleBarSquare.Position = UDim2.new(0, 0, 1, -10)
+titleBarSquare.BackgroundColor3 = Color3.fromRGB(8, 8, 14)
+titleBarSquare.BorderSizePixel = 0
+titleBarSquare.Parent = titleBar
 
-local titleIcon = Instance.new("TextLabel")
-titleIcon.Size = UDim2.new(0, 30, 1, 0)
-titleIcon.Position = UDim2.new(0, 8, 0, 0)
-titleIcon.BackgroundTransparency = 1
-titleIcon.Text = "dud"
-titleIcon.TextColor3 = Color3.fromRGB(255, 200, 80)
-titleIcon.TextSize = 16
-titleIcon.Font = Enum.Font.GothamBold
-titleIcon.Parent = titleBar
+-- gradient on title bar
+local titleGrad = Instance.new("UIGradient")
+titleGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 180, 255)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(80, 0, 200))
+})
+titleGrad.Rotation = 90
+titleGrad.Transparency = NumberSequence.new({
+    NumberSequenceKeypoint.new(0, 0.82),
+    NumberSequenceKeypoint.new(1, 0.82)
+})
+titleGrad.Parent = titleBar
+
+-- cyan accent line under title bar
+local titleAccent = Instance.new("Frame")
+titleAccent.Size = UDim2.new(1, 0, 0, 1)
+titleAccent.Position = UDim2.new(0, 0, 1, -1)
+titleAccent.BackgroundColor3 = Color3.fromRGB(0, 210, 255)
+titleAccent.BorderSizePixel = 0
+titleAccent.BackgroundTransparency = 0.3
+titleAccent.Parent = titleBar
+
+-- icon circle
+local iconCircle = Instance.new("Frame")
+iconCircle.Size = UDim2.new(0, 28, 0, 28)
+iconCircle.Position = UDim2.new(0, 10, 0.5, -14)
+iconCircle.BackgroundColor3 = Color3.fromRGB(0, 180, 255)
+iconCircle.BorderSizePixel = 0
+iconCircle.Parent = titleBar
+Instance.new("UICorner", iconCircle).CornerRadius = UDim.new(1, 0)
+local iconGrad = Instance.new("UIGradient")
+iconGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 220, 255)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(100, 0, 255))
+})
+iconGrad.Rotation = 135
+iconGrad.Parent = iconCircle
+
+local iconLabel = Instance.new("TextLabel")
+iconLabel.Size = UDim2.new(1, 0, 1, 0)
+iconLabel.BackgroundTransparency = 1
+iconLabel.Text = "?"
+iconLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+iconLabel.TextSize = 13
+iconLabel.Font = Enum.Font.GothamBold
+iconLabel.Parent = iconCircle
 
 local titleLabel = Instance.new("TextLabel")
-titleLabel.Size = UDim2.new(1, -80, 1, 0)
-titleLabel.Position = UDim2.new(0, 36, 0, 0)
+titleLabel.Size = UDim2.new(1, -100, 1, 0)
+titleLabel.Position = UDim2.new(0, 46, 0, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "The developers of the game are 10 year olds fact"
-titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-titleLabel.TextSize = 14
+titleLabel.Text = "8:20 PM (Finale update)"
+titleLabel.TextColor3 = Color3.fromRGB(240, 240, 255)
+titleLabel.TextSize = 15
 titleLabel.Font = Enum.Font.GothamBold
 titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 titleLabel.Parent = titleBar
 
 local versionLabel = Instance.new("TextLabel")
-versionLabel.Size = UDim2.new(0, 40, 1, 0)
-versionLabel.Position = UDim2.new(1, -48, 0, 0)
+versionLabel.Size = UDim2.new(0, 38, 1, 0)
+versionLabel.Position = UDim2.new(1, -44, 0, 0)
 versionLabel.BackgroundTransparency = 1
-versionLabel.Text = "v1.2"
-versionLabel.TextColor3 = Color3.fromRGB(100, 100, 100)
-versionLabel.TextSize = 11
-versionLabel.Font = Enum.Font.Gotham
+versionLabel.Text = "v1.3"
+versionLabel.TextColor3 = Color3.fromRGB(0, 180, 255)
+versionLabel.TextSize = 10
+versionLabel.Font = Enum.Font.GothamBold
 versionLabel.TextXAlignment = Enum.TextXAlignment.Right
 versionLabel.Parent = titleBar
 
--- Status / Count
+-- ── Status Row ─────────────────────────────────────────────
+local statusRow = Instance.new("Frame")
+statusRow.Size = UDim2.new(1, -20, 0, 30)
+statusRow.Position = UDim2.new(0, 10, 0, 52)
+statusRow.BackgroundColor3 = Color3.fromRGB(18, 18, 28)
+statusRow.BorderSizePixel = 0
+statusRow.Parent = mainFrame
+Instance.new("UICorner", statusRow).CornerRadius = UDim.new(0, 6)
+
+local statusDot = Instance.new("Frame")
+statusDot.Size = UDim2.new(0, 7, 0, 7)
+statusDot.Position = UDim2.new(0, 10, 0.5, -3)
+statusDot.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
+statusDot.BorderSizePixel = 0
+statusDot.Parent = statusRow
+Instance.new("UICorner", statusDot).CornerRadius = UDim.new(1, 0)
+
 local statusLabel = Instance.new("TextLabel")
-statusLabel.Size = UDim2.new(1, -20, 0, 20)
-statusLabel.Position = UDim2.new(0, 10, 0, 46)
+statusLabel.Size = UDim2.new(0.5, -20, 1, 0)
+statusLabel.Position = UDim2.new(0, 24, 0, 0)
 statusLabel.BackgroundTransparency = 1
 statusLabel.Text = "Status: OFF"
-statusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-statusLabel.TextSize = 12
-statusLabel.Font = Enum.Font.Gotham
+statusLabel.TextColor3 = Color3.fromRGB(180, 180, 200)
+statusLabel.TextSize = 11
+statusLabel.Font = Enum.Font.GothamBold
 statusLabel.TextXAlignment = Enum.TextXAlignment.Left
-statusLabel.Parent = mainFrame
+statusLabel.Parent = statusRow
 
 local countLabel = Instance.new("TextLabel")
-countLabel.Size = UDim2.new(1, -20, 0, 16)
-countLabel.Position = UDim2.new(0, 10, 0, 66)
+countLabel.Size = UDim2.new(0.5, -10, 1, 0)
+countLabel.Position = UDim2.new(0.5, 0, 0, 0)
 countLabel.BackgroundTransparency = 1
 countLabel.Text = "Fired: 0"
-countLabel.TextColor3 = Color3.fromRGB(130, 130, 130)
+countLabel.TextColor3 = Color3.fromRGB(0, 180, 255)
 countLabel.TextSize = 11
-countLabel.Font = Enum.Font.Gotham
-countLabel.TextXAlignment = Enum.TextXAlignment.Left
-countLabel.Parent = mainFrame
+countLabel.Font = Enum.Font.GothamBold
+countLabel.TextXAlignment = Enum.TextXAlignment.Right
+countLabel.Parent = statusRow
 
--- Toggle helper
-local function makeToggle(labelText, yPos, color)
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, -20, 0, 16)
-    label.Position = UDim2.new(0, 10, 0, yPos)
-    label.BackgroundTransparency = 1
-    label.Text = labelText
-    label.TextColor3 = Color3.fromRGB(160, 160, 160)
-    label.TextSize = 11
-    label.Font = Enum.Font.Gotham
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Parent = mainFrame
+-- ── Divider helper ─────────────────────────────────────────
+local function makeDivider(yPos, label)
+    local div = Instance.new("Frame")
+    div.Size = UDim2.new(1, -20, 0, 1)
+    div.Position = UDim2.new(0, 10, 0, yPos)
+    div.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+    div.BorderSizePixel = 0
+    div.Parent = mainFrame
 
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, -20, 0, 32)
-    btn.Position = UDim2.new(0, 10, 0, yPos + 18)
-    btn.BackgroundColor3 = color
-    btn.BorderSizePixel = 0
-    btn.Text = "Enable"
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.TextSize = 13
-    btn.Font = Enum.Font.GothamBold
-    btn.Parent = mainFrame
-    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
-    return btn
+    if label then
+        local lbl = Instance.new("TextLabel")
+        lbl.Size = UDim2.new(0, 80, 0, 14)
+        lbl.Position = UDim2.new(0, 8, 0, yPos - 6)
+        lbl.BackgroundColor3 = Color3.fromRGB(11, 11, 17)
+        lbl.BorderSizePixel = 0
+        lbl.Text = "  " .. label .. "  "
+        lbl.TextColor3 = Color3.fromRGB(80, 80, 120)
+        lbl.TextSize = 9
+        lbl.Font = Enum.Font.GothamBold
+        lbl.Parent = mainFrame
+    end
 end
 
-local clickToggle  = makeToggle("Click Detectors",            92,  Color3.fromRGB(60,130,220))
-local fakeToggle   = makeToggle("Delete Fake Objects",        146, Color3.fromRGB(160,100,30))
-local wraithToggle = makeToggle("Delete Wraith Objects",      200, Color3.fromRGB(80,50,160))
-local wallsToggle  = makeToggle("Delete FakeWalls",           254, Color3.fromRGB(200,120,40))
-local espToggle    = makeToggle("Wraith ESP",                 308, Color3.fromRGB(200,80,80))
-local tpButton     = makeToggle("Teleport to Exit",           362, Color3.fromRGB(60,180,100))
-local promptToggle = makeToggle("Auto beat sublevels",        416, Color3.fromRGB(100,200,150))
-local hideToggle   = makeToggle("Hide Players",               470, Color3.fromRGB(40,140,160))
-local epToggle     = makeToggle("Entity Prevention Bubble",   524, Color3.fromRGB(80,180,140))
+-- ── Toggle helper ──────────────────────────────────────────
+local function makeToggle(labelText, yPos, accentColor)
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, -20, 0, 13)
+    lbl.Position = UDim2.new(0, 10, 0, yPos)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = labelText
+    lbl.TextColor3 = Color3.fromRGB(130, 130, 160)
+    lbl.TextSize = 10
+    lbl.Font = Enum.Font.GothamBold
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = mainFrame
 
-local clickEnabled   = false
-local fakeEnabled    = false
-local wraithEnabled  = false
-local wallsEnabled   = false
-local espEnabled     = false
-local hideEnabled    = false
-local epEnabled      = false
-local promptEnabled  = false
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -20, 0, 28)
+    btn.Position = UDim2.new(0, 10, 0, yPos + 14)
+    btn.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+    btn.BorderSizePixel = 0
+    btn.Text = ""
+    btn.AutoButtonColor = false
+    btn.Parent = mainFrame
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
 
-local function flip(btn, state, color)
-    state = not state
-    btn.Text = state and "Disable" or "Enable"
-    btn.BackgroundColor3 = state and Color3.fromRGB(200,60,60) or color
-    return state
+    -- stroke border
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = accentColor
+    stroke.Thickness = 1
+    stroke.Transparency = 0.6
+    stroke.Parent = btn
+
+    -- left accent bar
+    local bar = Instance.new("Frame")
+    bar.Size = UDim2.new(0, 3, 1, -8)
+    bar.Position = UDim2.new(0, 0, 0, 4)
+    bar.BackgroundColor3 = accentColor
+    bar.BorderSizePixel = 0
+    bar.Parent = btn
+    Instance.new("UICorner", bar).CornerRadius = UDim.new(0, 4)
+
+    -- button text label
+    local btnText = Instance.new("TextLabel")
+    btnText.Size = UDim2.new(1, -14, 1, 0)
+    btnText.Position = UDim2.new(0, 14, 0, 0)
+    btnText.BackgroundTransparency = 1
+    btnText.Text = "ENABLE"
+    btnText.TextColor3 = Color3.fromRGB(200, 200, 220)
+    btnText.TextSize = 11
+    btnText.Font = Enum.Font.GothamBold
+    btnText.TextXAlignment = Enum.TextXAlignment.Left
+    btnText.Parent = btn
+
+    -- status pill on right
+    local pill = Instance.new("Frame")
+    pill.Size = UDim2.new(0, 42, 0, 16)
+    pill.Position = UDim2.new(1, -48, 0.5, -8)
+    pill.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+    pill.BorderSizePixel = 0
+    pill.Parent = btn
+    Instance.new("UICorner", pill).CornerRadius = UDim.new(1, 0)
+
+    local pillText = Instance.new("TextLabel")
+    pillText.Size = UDim2.new(1, 0, 1, 0)
+    pillText.BackgroundTransparency = 1
+    pillText.Text = "OFF"
+    pillText.TextColor3 = Color3.fromRGB(100, 100, 130)
+    pillText.TextSize = 9
+    pillText.Font = Enum.Font.GothamBold
+    pillText.Parent = pill
+
+    -- hover effect
+    btn.MouseEnter:Connect(function()
+        stroke.Transparency = 0.1
+    end)
+    btn.MouseLeave:Connect(function()
+        if pillText.Text == "OFF" then stroke.Transparency = 0.6 end
+    end)
+
+    return btn, stroke, bar, btnText, pill, pillText
+end
+
+-- Build toggles
+-- Each toggle returns: btn, stroke, bar, btnText, pill, pillText
+local y = 90
+local STEP = 50
+
+local function nextY()
+    local v = y
+    y = y + STEP
+    return v
+end
+
+-- COMBAT section
+makeDivider(86, "COMBAT")
+local clickBtn, clickStroke, clickBar, clickText, clickPill, clickPillText         = makeToggle("Click Detectors",       nextY(), Color3.fromRGB(60,160,255))
+local fakeBtn, fakeStroke, fakeBar, fakeText, fakePill, fakePillText               = makeToggle("Delete Fake Objects",   nextY(), Color3.fromRGB(255,160,40))
+local wraithBtn, wraithStroke, wraithBar, wraithText, wraithPill, wraithPillText   = makeToggle("Delete Wraith Objects", nextY(), Color3.fromRGB(160,80,255))
+local wallsBtn, wallsStroke, wallsBar, wallsText, wallsPill, wallsPillText         = makeToggle("Delete FakeWalls",      nextY(), Color3.fromRGB(255,140,40))
+local weakBtn, weakStroke, weakBar, weakText, weakPill, weakPillText               = makeToggle("Delete WeakWalls",      nextY(), Color3.fromRGB(220,80,140))
+
+-- VISION section
+makeDivider(y + 2, "VISION")
+y = y + 10
+local espBtn, espStroke, espBar, espText, espPill, espPillText                     = makeToggle("Wraith ESP",            nextY(), Color3.fromRGB(255,80,80))
+local hideBtn, hideStroke, hideBar, hideText, hidePill, hidePillText               = makeToggle("Hide Players",          nextY(), Color3.fromRGB(40,200,200))
+
+-- UTILITY section
+makeDivider(y + 2, "UTILITY")
+y = y + 10
+local tpBtn, tpStroke, tpBar, tpText, tpPill, tpPillText                          = makeToggle("Teleport to Exit",      nextY(), Color3.fromRGB(60,220,120))
+local promptBtn, promptStroke, promptBar, promptText, promptPill, promptPillText   = makeToggle("Auto Beat Sublevels",   nextY(), Color3.fromRGB(120,220,160))
+
+-- resize frame to fit
+mainFrame.Size = UDim2.new(0, 248, 0, y + 10)
+mainFrame.Position = UDim2.new(0, 16, 0.5, -(y + 10) / 2)
+
+-- ============================================================
+-- STATE
+-- ============================================================
+local clickEnabled  = false
+local fakeEnabled   = false
+local wraithEnabled = false
+local wallsEnabled  = false
+local espEnabled    = false
+local hideEnabled   = false
+local promptEnabled = false
+local weakEnabled   = false
+
+local function flip(enabled, btn, stroke, bar, btnText, pill, pillText, accentColor)
+    enabled = not enabled
+    if enabled then
+        btn.BackgroundColor3 = Color3.fromRGB(25, 14, 14)
+        stroke.Color = Color3.fromRGB(220, 50, 50)
+        stroke.Transparency = 0
+        bar.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
+        btnText.TextColor3 = Color3.fromRGB(255, 100, 100)
+        pill.BackgroundColor3 = Color3.fromRGB(180, 30, 30)
+        pillText.Text = "ON"
+        pillText.TextColor3 = Color3.fromRGB(255, 180, 180)
+    else
+        btn.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+        stroke.Color = accentColor
+        stroke.Transparency = 0.6
+        bar.BackgroundColor3 = accentColor
+        btnText.TextColor3 = Color3.fromRGB(200, 200, 220)
+        pill.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+        pillText.Text = "OFF"
+        pillText.TextColor3 = Color3.fromRGB(100, 100, 130)
+    end
+    return enabled
 end
 
 -- ============================================================
@@ -183,7 +365,7 @@ local function restorePlayer(p)
 end
 
 -- ============================================================
--- ESP / WRAITH HELPERS
+-- ESP
 -- ============================================================
 local function highlightObject(obj)
     if espTagged[obj] then return end
@@ -224,47 +406,49 @@ local function startSubLevelWatcher()
                         if obj.Name:lower():find("wraith") then pcall(function() obj:Destroy() end) end
                     end
                 end
+                if weakEnabled then
+                    for _, obj in ipairs(child:GetDescendants()) do
+                        if obj.Name:lower():find("weak") then pcall(function() obj:Destroy() end) end
+                    end
+                end
             end)
         end
     end)
 end
 
 -- ============================================================
--- ENTITY PREVENTION BUBBLE
--- ============================================================
-
--- dude this isnt coming april fools
-
--- ============================================================
 -- TOGGLE CONNECTIONS
 -- ============================================================
-clickToggle.MouseButton1Click:Connect(function()
-    clickEnabled = flip(clickToggle, clickEnabled, Color3.fromRGB(60,130,220))
+clickBtn.MouseButton1Click:Connect(function()
+    clickEnabled = flip(clickEnabled, clickBtn, clickStroke, clickBar, clickText, clickPill, clickPillText, Color3.fromRGB(60,160,255))
+    statusDot.BackgroundColor3 = clickEnabled and Color3.fromRGB(0, 220, 100) or Color3.fromRGB(255, 60, 60)
     statusLabel.Text = "Status: " .. (clickEnabled and "ON" or "OFF")
+    statusLabel.TextColor3 = clickEnabled and Color3.fromRGB(0, 220, 100) or Color3.fromRGB(180, 180, 200)
 end)
 
-fakeToggle.MouseButton1Click:Connect(function() fakeEnabled = flip(fakeToggle, fakeEnabled, Color3.fromRGB(160,100,30)) end)
-wraithToggle.MouseButton1Click:Connect(function() wraithEnabled = flip(wraithToggle, wraithEnabled, Color3.fromRGB(80,50,160)) end)
-wallsToggle.MouseButton1Click:Connect(function() wallsEnabled = flip(wallsToggle, wallsEnabled, Color3.fromRGB(200,120,40)) end)
+fakeBtn.MouseButton1Click:Connect(function()
+    fakeEnabled = flip(fakeEnabled, fakeBtn, fakeStroke, fakeBar, fakeText, fakePill, fakePillText, Color3.fromRGB(255,160,40))
+end)
 
-espToggle.MouseButton1Click:Connect(function()
-    espEnabled = flip(espToggle, espEnabled, Color3.fromRGB(200,80,80))
+wraithBtn.MouseButton1Click:Connect(function()
+    wraithEnabled = flip(wraithEnabled, wraithBtn, wraithStroke, wraithBar, wraithText, wraithPill, wraithPillText, Color3.fromRGB(160,80,255))
+end)
+
+wallsBtn.MouseButton1Click:Connect(function()
+    wallsEnabled = flip(wallsEnabled, wallsBtn, wallsStroke, wallsBar, wallsText, wallsPill, wallsPillText, Color3.fromRGB(255,140,40))
+end)
+
+weakBtn.MouseButton1Click:Connect(function()
+    weakEnabled = flip(weakEnabled, weakBtn, weakStroke, weakBar, weakText, weakPill, weakPillText, Color3.fromRGB(220,80,140))
+end)
+
+espBtn.MouseButton1Click:Connect(function()
+    espEnabled = flip(espEnabled, espBtn, espStroke, espBar, espText, espPill, espPillText, Color3.fromRGB(255,80,80))
     if espEnabled then startSubLevelWatcher() else clearESP() end
 end)
 
-tpButton.MouseButton1Click:Connect(function()
-    pcall(function() 
-        local exit = workspace.Sublevel.Exit.exit
-        player.Character.HumanoidRootPart.CFrame = exit.CFrame + Vector3.new(0, 5, 0) 
-    end)
-end)
-
-promptToggle.MouseButton1Click:Connect(function()
-    promptEnabled = flip(promptToggle, promptEnabled, Color3.fromRGB(100,200,150))
-end)
-
-hideToggle.MouseButton1Click:Connect(function()
-    hideEnabled = flip(hideToggle, hideEnabled, Color3.fromRGB(40,140,160))
+hideBtn.MouseButton1Click:Connect(function()
+    hideEnabled = flip(hideEnabled, hideBtn, hideStroke, hideBar, hideText, hidePill, hidePillText, Color3.fromRGB(40,200,200))
     if hideEnabled then
         for _, p in ipairs(Players:GetPlayers()) do applyHideToPlayer(p) end
         playerAddedConn = Players.PlayerAdded:Connect(applyHideToPlayer)
@@ -274,21 +458,26 @@ hideToggle.MouseButton1Click:Connect(function()
     end
 end)
 
-epToggle.MouseButton1Click:Connect(function()
-    epEnabled = flip(epToggle, epEnabled, Color3.fromRGB(80,180,140))
-    if epEnabled then buildEPParts() else destroyEPParts() end
+tpBtn.MouseButton1Click:Connect(function()
+    pcall(function()
+        local exit = workspace.Sublevel.Exit.exit
+        player.Character.HumanoidRootPart.CFrame = exit.CFrame + Vector3.new(0, 5, 0)
+    end)
+end)
+
+promptBtn.MouseButton1Click:Connect(function()
+    promptEnabled = flip(promptEnabled, promptBtn, promptStroke, promptBar, promptText, promptPill, promptPillText, Color3.fromRGB(120,220,160))
 end)
 
 -- ============================================================
--- HELPER FUNCTIONS FOR HEARTBEAT
+-- HEARTBEAT FUNCTIONS
 -- ============================================================
-
 local function fireClicks()
     for _, obj in ipairs(workspace:GetDescendants()) do
         if obj:IsA("ClickDetector") then
             local ok = pcall(fireclickdetector, obj)
             if ok then
-                firedCount = firedCount + 1
+                firedCount += 1
                 countLabel.Text = "Fired: " .. firedCount
             end
         end
@@ -321,20 +510,36 @@ local function deleteFakeWalls()
     end
 end
 
+local function deleteWeak()
+    local sub = workspace:FindFirstChild("Sublevel")
+    if not sub then return end
+    for _, obj in ipairs(sub:GetDescendants()) do
+        if obj.Name:lower():find("weak") then pcall(function() obj:Destroy() end) end
+    end
+    for _, folderName in ipairs(LAP_FOLDERS) do
+        local lap = sub:FindFirstChild(folderName)
+        if lap then
+            for _, obj in ipairs(lap:GetDescendants()) do
+                if obj.Name:lower():find("weak") then pcall(function() obj:Destroy() end) end
+            end
+        end
+    end
+end
+
 -- ============================================================
--- MAIN HEARTBEAT LOOP
+-- MAIN HEARTBEAT
 -- ============================================================
 RunService.Heartbeat:Connect(function()
-    if clickEnabled then fireClicks() end
-    if fakeEnabled  then deleteFake() end
-    if wraithEnabled then deleteWraith() end
-    if wallsEnabled then deleteFakeWalls() end
+    if clickEnabled  then fireClicks()      end
+    if fakeEnabled   then deleteFake()      end
+    if wraithEnabled then deleteWraith()    end
+    if wallsEnabled  then deleteFakeWalls() end
+    if weakEnabled   then deleteWeak()      end
 
-    -- Instant Exit Loop logic
     if promptEnabled then
         local sub = workspace:FindFirstChild("Sublevel")
-        local success, prompt = pcall(function() return sub.Exit.exit.ProximityPrompt end)
-        if success and prompt then
+        local ok, prompt = pcall(function() return sub.Exit.exit.ProximityPrompt end)
+        if ok and prompt then
             prompt.MaxActivationDistance = math.huge
             prompt.RequiresLineOfSight = false
             local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
@@ -344,24 +549,20 @@ RunService.Heartbeat:Connect(function()
             end
         end
     end
-
-    if epEnabled and #epParts > 0 then
-        local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-        if root then
-            for i, p in ipairs(epParts) do
-                local angle = (2 * math.pi / EP_COUNT) * (i - 1)
-                p.CFrame = CFrame.new(root.Position + Vector3.new(math.cos(angle)*EP_RADIUS, 0, math.sin(angle)*EP_RADIUS))
-            end
-        end
-    end
 end)
 
--- Final Wrapper for Wraith Auto-Delete on Load
 workspace.ChildAdded:Connect(function(child)
-    if child.Name == "Sublevel" and wraithEnabled then
+    if child.Name == "Sublevel" then
         task.defer(function()
-            for _, obj in ipairs(child:GetDescendants()) do
-                if obj.Name:lower():find("wraith") then pcall(function() obj:Destroy() end) end
+            if wraithEnabled then
+                for _, obj in ipairs(child:GetDescendants()) do
+                    if obj.Name:lower():find("wraith") then pcall(function() obj:Destroy() end) end
+                end
+            end
+            if weakEnabled then
+                for _, obj in ipairs(child:GetDescendants()) do
+                    if obj.Name:lower():find("weak") then pcall(function() obj:Destroy() end) end
+                end
             end
         end)
     end
