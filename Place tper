@@ -91,22 +91,29 @@ local function makeButton(name, placeId, order)
     end
 
     btn.MouseButton1Click:Connect(function()
-        if placeId == game.PlaceId then
-            btn.Text = "⚠️ Already here!"
-            task.delay(1.5, function()
-                btn.Text = "📍 " .. name .. " (here)"
-            end)
-            return
-        end
-        btn.Text = "⏳ Teleporting..."
-        btn.BackgroundColor3 = Color3.fromRGB(0, 120, 60)
-        pcall(function()
-    TeleportService:TeleportAsync(placeId, {lp})
-end)
+    btn.MouseButton1Click:Connect(function()
+    if placeId == game.PlaceId then
+        btn.Text = "⚠️ Already here!"
+        task.delay(1.5, function()
+            btn.Text = "📍 " .. name .. " (here)"
+        end)
+        return
+    end
+    btn.Text = "⏳ Teleporting..."
+    btn.BackgroundColor3 = Color3.fromRGB(0, 120, 60)
+
+    local options = Instance.new("TeleportOptions")
+    options.ShouldReserveServer = false
+
+    local ok, err = pcall(function()
+        TeleportService:TeleportAsync(placeId, {lp}, options)
     end)
 
-    return btn
-end
+    if not ok then
+        btn.Text = "❌ Failed: " .. tostring(err):sub(1, 30)
+        btn.BackgroundColor3 = Color3.fromRGB(120, 30, 30)
+    end
+end)
 
 -- Fetch places from Roblox API
 task.spawn(function()
