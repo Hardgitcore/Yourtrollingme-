@@ -1,0 +1,141 @@
+local TeleportService = game:GetService("TeleportService")
+local Players = game:GetService("Players")
+local lp = Players.LocalPlayer
+local universeId = game.GameId
+
+-- Executor HTTP request compat
+local function httpGet(url)
+    if syn and syn.request then
+        return syn.request({ Url = url, Method = "GET" })
+    elseif http_request then
+        return http_request({ Url = url, Method = "GET" })
+    elseif request then
+        return request({ Url = url, Method = "GET" })
+    end
+end
+
+-- GUI
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "PlaceTeleportHub"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = lp.PlayerGui
+
+local Frame = Instance.new("Frame")
+Frame.Size = UDim2.new(0, 240, 0, 340)
+Frame.Position = UDim2.new(0, 20, 0.25, 0)
+Frame.BackgroundColor3 = Color3.fromRGB(18, 18, 28)
+Frame.BorderSizePixel = 0
+Frame.Active = true
+Frame.Draggable = true
+Frame.Parent = ScreenGui
+Instance.new("UICorner", Frame).CornerRadius = UDim.new(0, 8)
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 38)
+Title.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Text = "🚀 Place Teleport Hub"
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 14
+Title.BorderSizePixel = 0
+Title.Parent = Frame
+Instance.new("UICorner", Title).CornerRadius = UDim.new(0, 8)
+
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Size = UDim2.new(1, -10, 0, 24)
+StatusLabel.Position = UDim2.new(0, 5, 0, 42)
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.TextColor3 = Color3.fromRGB(160, 160, 180)
+StatusLabel.Text = "Fetching places..."
+StatusLabel.Font = Enum.Font.Gotham
+StatusLabel.TextSize = 11
+StatusLabel.Parent = Frame
+
+-- Scrolling list
+local ScrollFrame = Instance.new("ScrollingFrame")
+ScrollFrame.Size = UDim2.new(1, -10, 1, -80)
+ScrollFrame.Position = UDim2.new(0, 5, 0, 70)
+ScrollFrame.BackgroundTransparency = 1
+ScrollFrame.BorderSizePixel = 0
+ScrollFrame.ScrollBarThickness = 4
+ScrollFrame.ScrollBarImageColor3 = Color3.fromRGB(0, 150, 255)
+ScrollFrame.Parent = Frame
+
+local ListLayout = Instance.new("UIListLayout")
+ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+ListLayout.Padding = UDim.new(0, 5)
+ListLayout.Parent = ScrollFrame
+
+local function makeButton(name, placeId, order)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -8, 0, 36)
+    btn.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
+    btn.TextColor3 = Color3.fromRGB(220, 220, 255)
+    btn.Text = "🌐 " .. name
+    btn.Font = Enum.Font.GothamSemibold
+    btn.TextSize = 12
+    btn.TextXAlignment = Enum.TextXAlignment.Left
+    btn.BorderSizePixel = 0
+    btn.LayoutOrder = order
+    btn.Parent = ScrollFrame
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+
+    local pad = Instance.new("UIPadding")
+    pad.PaddingLeft = UDim.new(0, 10)
+    pad.Parent = btn
+
+    -- Highlight current place
+    if placeId == game.PlaceId then
+        btn.BackgroundColor3 = Color3.fromRGB(0, 80, 160)
+        btn.Text = "📍 " .. name .. " (here)"
+    end
+
+    btn.MouseButton1Click:Connect(function()
+        if placeId == game.PlaceId then
+            btn.Text = "⚠️ Already here!"
+            task.delay(1.5, function()
+                btn.Text = "📍 " .. name .. " (here)"
+            end)
+            return
+        end
+        btn.Text = "⏳ Teleporting..."
+        btn.BackgroundColor3 = Color3.fromRGB(0, 120, 60)
+        pcall(function()
+    TeleportService:TeleportAsync(placeId, {lp})
+end)
+    end)
+
+    return btn
+end
+
+-- Fetch places from Roblox API
+task.spawn(function()
+    local ok, result = pcall(function()
+        local url = "https://develop.roblox.com/v1/universes/" .. universeId .. "/places?sortOrder=Asc&limit=50"
+        local res = httpGet(url)
+        if not res or res.StatusCode ~= 200 then
+            error("HTTP " .. (res and res.StatusCode or "nil"))
+        end
+        return game:GetService("HttpService"):JSONDecode(res.Body)
+    end)
+
+    if not ok then
+        StatusLabel.Text = "❌ Failed: " .. tostring(result)
+        return
+    end
+
+    local places = result and result.data
+    if not places or #places == 0 then
+        StatusLabel.Text = "❌ No places found."
+        return
+    end
+
+    StatusLabel.Text = "✅ Found " .. #places .. " place(s)"
+
+    for i, place in ipairs(places) do
+        makeButton(place.name or "Place " .. i, place.placeId, i)
+    end
+
+    -- Resize scroll canvas
+    ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, #places * 41)
+end)
