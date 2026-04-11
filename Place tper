@@ -1,164 +1,620 @@
-local TeleportService = game:GetService("TeleportService")
+-- LocalScript: Groq AI AutoPlayer
+
+local PathfindingService = game:GetService("PathfindingService")
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
+local PathfindingService = game:GetService("PathfindingService")
+local player = Players.LocalPlayer
 
-local lp = Players.LocalPlayer
-local universeId = game.GameId
+-- ============================================================
+-- CONFIG — edit these
+-- ============================================================
+local GROQ_API_KEY       = "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"
+local GROQ_MODEL         = "llama-3.3-70b-versatile"
+local AI_DECISION_EVERY  = 1.5   -- seconds between AI calls
+local CHASER_DANGER_DIST = 30
+local CHASER_FLEE_DIST   = 60
+local INTERACT_RANGE     = 15
+local WAYPOINT_REACH     = 6
 
--- Executor HTTP support
-local function httpGet(url)
-    if syn and syn.request then
-        return syn.request({Url = url, Method = "GET"})
-    elseif http_request then
-        return http_request({Url = url, Method = "GET"})
-    elseif request then
-        return request({Url = url, Method = "GET"})
-    else
-        error("No HTTP request function found")
+-- ============================================================
+-- GUI
+-- ============================================================
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "GroqAutoPlayer"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player.PlayerGui
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 260, 0, 300)
+mainFrame.Position = UDim2.new(1, -280, 0.5, -150)
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8)
+
+local titleBar = Instance.new("Frame")
+titleBar.Size = UDim2.new(1, 0, 0, 36)
+titleBar.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+titleBar.BorderSizePixel = 0
+titleBar.Parent = mainFrame
+Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 8)
+
+local titleBarBottom = Instance.new("Frame")
+titleBarBottom.Size = UDim2.new(1, 0, 0, 8)
+titleBarBottom.Position = UDim2.new(0, 0, 1, -8)
+titleBarBottom.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+titleBarBottom.BorderSizePixel = 0
+titleBarBottom.Parent = titleBar
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, -20, 1, 0)
+titleLabel.Position = UDim2.new(0, 10, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "8:20 PM — Groq AI Player"
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.TextSize = 13
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.Parent = titleBar
+
+local function makeLabel(yPos, defaultText, color)
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, -20, 0, 16)
+    lbl.Position = UDim2.new(0, 10, 0, yPos)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = defaultText
+    lbl.TextColor3 = color or Color3.fromRGB(180, 180, 180)
+    lbl.TextSize = 11
+    lbl.Font = Enum.Font.Gotham
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.TextTruncate = Enum.TextTruncate.AtEnd
+    lbl.Parent = mainFrame
+    return lbl
+end
+
+local statusLbl  = makeLabel(46,  "Status: Idle",            Color3.fromRGB(200,200,200))
+local actionLbl  = makeLabel(64,  "Action: —",               Color3.fromRGB(100,200,255))
+local chaserLbl  = makeLabel(82,  "Chaser: scanning...",     Color3.fromRGB(80,200,80))
+local targetLbl  = makeLabel(100, "Target: —",               Color3.fromRGB(160,160,160))
+local reasonLbl  = makeLabel(118, "Reason: —",               Color3.fromRGB(120,120,120))
+reasonLbl.Size = UDim2.new(1, -20, 0, 30)
+reasonLbl.TextWrapped = true
+
+local function makeBtn(text, yPos, r, g, b)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -20, 0, 34)
+    btn.Position = UDim2.new(0, 10, 0, yPos)
+    btn.BackgroundColor3 = Color3.fromRGB(r, g, b)
+    btn.BorderSizePixel = 0
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.TextSize = 13
+    btn.Font = Enum.Font.GothamBold
+    btn.Parent = mainFrame
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+    return btn
+end
+
+local startBtn = makeBtn("Start AI",  158, 60, 180, 80)
+local stopBtn  = makeBtn("Stop",      202, 80, 80, 80)
+local scanBtn  = makeBtn("Scan Now",  246, 60, 130, 220)
+
+-- ============================================================
+-- HELPERS
+-- ============================================================
+
+local function getRoot()
+    local char = player.Character
+    return char and char:FindFirstChild("HumanoidRootPart")
+end
+
+local function getHumanoid()
+    local char = player.Character
+    return char and char:FindFirstChildWhichIsA("Humanoid")
+end
+
+local function getSubLevel()
+    return workspace:FindFirstChild("Sublevel")
+end
+
+-- ============================================================
+-- CHASER
+-- ============================================================
+
+local function getChaser()
+    local sub = getSubLevel()
+    if not sub then return nil end
+    local c = sub:FindFirstChild("Chaser")
+    if c then return c end
+    for _, obj in ipairs(sub:GetDescendants()) do
+        if obj.Name == "Chaser" and (obj:IsA("Model") or obj:IsA("BasePart")) then
+            return obj
+        end
+    end
+    return nil
+end
+
+local function getChaserPosition()
+    local chaser = getChaser()
+    if not chaser then return nil end
+    if chaser:IsA("Model") then
+        local r = chaser:FindFirstChild("HumanoidRootPart")
+            or chaser.PrimaryPart
+            or chaser:FindFirstChildWhichIsA("BasePart")
+        return r and r.Position or nil
+    end
+    return chaser:IsA("BasePart") and chaser.Position or nil
+end
+
+local function getChaserDistance()
+    local root = getRoot()
+    if not root then return math.huge end
+    local cPos = getChaserPosition()
+    if not cPos then return math.huge end
+    return (root.Position - cPos).Magnitude
+end
+
+local function getFleePosition()
+    local root = getRoot()
+    if not root then return nil end
+    local cPos = getChaserPosition()
+    if not cPos then return nil end
+    local away = root.Position - cPos
+    if away.Magnitude < 0.1 then
+        away = Vector3.new(math.random(-1,1), 0, math.random(-1,1))
+    end
+    away = Vector3.new(away.X, 0, away.Z).Unit
+    return root.Position + away * CHASER_FLEE_DIST
+end
+
+-- ============================================================
+-- SCANNER — builds game state for AI
+-- ============================================================
+
+local function scanGameState()
+    local root    = getRoot()
+    local sub     = getSubLevel()
+    local state   = {}
+
+    state.playerPos   = root and tostring(root.Position) or "unknown"
+    state.chaserDist  = math.floor(getChaserDistance())
+    state.chaserPos   = getChaserPosition() and tostring(getChaserPosition()) or "not found"
+    state.inDanger    = getChaserDistance() < CHASER_DANGER_DIST
+
+    state.exits          = {}
+    state.buttons        = {}
+    state.clickDetectors = {}
+    state.proximityPrompts = {}
+    state.checkpoints    = {}
+
+    if sub then
+        for _, obj in ipairs(sub:GetDescendants()) do
+            local n = obj.Name:lower()
+            if n:find("fake") or n:find("wraith") then continue end
+
+            -- Exit
+            if n == "exit" or n:find("exit") then
+                local pos = nil
+                if obj:IsA("BasePart") then pos = obj.Position
+                elseif obj:IsA("Model") then
+                    local p = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+                    if p then pos = p.Position end
+                end
+                if pos and root then
+                    table.insert(state.exits, {
+                        name = obj.Name,
+                        dist = math.floor((root.Position - pos).Magnitude),
+                        pos  = tostring(pos)
+                    })
+                end
+            end
+
+            -- Buttons
+            if n == "button" or n:find("button") then
+                if obj:IsA("BasePart") and root then
+                    table.insert(state.buttons, {
+                        name = obj.Name,
+                        dist = math.floor((root.Position - obj.Position).Magnitude),
+                        pos  = tostring(obj.Position)
+                    })
+                end
+            end
+
+            -- ClickDetectors
+            if obj:IsA("ClickDetector") then
+                local part = obj.Parent
+                if part and part:IsA("BasePart") and root then
+                    table.insert(state.clickDetectors, {
+                        name = part.Name,
+                        dist = math.floor((root.Position - part.Position).Magnitude),
+                        pos  = tostring(part.Position)
+                    })
+                end
+            end
+
+            -- ProximityPrompts
+            if obj:IsA("ProximityPrompt") then
+                local part = obj.Parent
+                if part and part:IsA("BasePart") and root then
+                    table.insert(state.proximityPrompts, {
+                        name = part.Name,
+                        dist = math.floor((root.Position - part.Position).Magnitude),
+                        pos  = tostring(part.Position)
+                    })
+                end
+            end
+
+            -- Checkpoints
+            if obj:IsA("BasePart") and (n:find("checkpoint") or n:find("start") or n:find("waypoint")) then
+                if root then
+                    table.insert(state.checkpoints, {
+                        name = obj.Name,
+                        dist = math.floor((root.Position - obj.Position).Magnitude),
+                        pos  = tostring(obj.Position)
+                    })
+                end
+            end
+        end
+    end
+
+    -- Sort all by distance
+    local function sortByDist(t)
+        table.sort(t, function(a, b) return a.dist < b.dist end)
+    end
+    sortByDist(state.exits)
+    sortByDist(state.buttons)
+    sortByDist(state.clickDetectors)
+    sortByDist(state.proximityPrompts)
+    sortByDist(state.checkpoints)
+
+    -- Lap buttons (specific known structure)
+    state.lapButtons = {}
+    if sub then
+        for lapNum = 1, 4 do
+            local lap = sub:FindFirstChild("Lap" .. lapNum)
+            if lap then
+                local children = lap:GetChildren()
+                if children[3] then
+                    local btn = children[3]:FindFirstChild("Button")
+                        or (children[3].Name == "Button" and children[3])
+                    if btn and btn:IsA("BasePart") and root then
+                        table.insert(state.lapButtons, {
+                            name = "Lap"..lapNum.."Button",
+                            dist = math.floor((root.Position - btn.Position).Magnitude),
+                            pos  = tostring(btn.Position)
+                        })
+                    end
+                end
+            end
+        end
+        sortByDist(state.lapButtons)
+    end
+
+    return state
+end
+
+-- ============================================================
+-- GROQ API CALL
+-- Returns { action, targetPos, reason } or nil on failure
+-- Actions: "move_exit", "move_button", "move_cd", "move_pp",
+--          "move_checkpoint", "flee", "fire_all", "wait"
+-- ============================================================
+
+local function callGroqAI(state)
+    local prompt = string.format([[
+You are the AI brain of a Roblox horror game autoplayer. Your ONLY goal is to reach the Exit without being touched by the Chaser.
+
+Current game state (JSON):
+%s
+
+Rules:
+- If inDanger is true OR chaserDist < %d, you MUST flee immediately
+- Priority order: flee > reach exit > press buttons/click detectors > move to checkpoints
+- Lap buttons (lapButtons) are important — pressing them unlocks progress
+- Click detectors within %d studs should be fired while moving
+- Always pick the closest relevant target
+- Never move toward the chaser
+
+Respond with ONLY valid JSON, no markdown, no explanation. Format:
+{
+  "action": "flee|move_exit|move_button|move_lapbutton|move_cd|move_pp|move_checkpoint|fire_all|wait",
+  "targetName": "name of target or empty string",
+  "targetPos": "x, y, z numbers as string or empty string",
+  "reason": "one short sentence"
+}
+]], HttpService:JSONEncode(state), CHASER_DANGER_DIST, INTERACT_RANGE)
+
+    local body = HttpService:JSONEncode({
+        model = GROQ_MODEL,
+        messages = {
+            {
+                role = "system",
+                content = "You are a Roblox game AI. Respond only with valid JSON decisions. No markdown, no backticks."
+            },
+            {
+                role = "user",
+                content = prompt
+            }
+        },
+        max_tokens = 200,
+        temperature = 0.2
+    })
+
+    local ok, result = pcall(function()
+        return game:GetService("HttpService"):RequestAsync({
+            Url    = "https://api.groq.com/openai/v1/chat/completions",
+            Method = "POST",
+            Headers = {
+                ["Content-Type"]  = "application/json",
+                ["Authorization"] = "Bearer " .. GROQ_API_KEY
+            },
+            Body = body
+        })
+    end)
+
+    if not ok or not result or result.StatusCode ~= 200 then
+        warn("Groq API error:", result and result.StatusCode, result and result.Body)
+        return nil
+    end
+
+    local decoded = pcall(function()
+        result = HttpService:JSONDecode(result.Body)
+    end)
+
+    local text = result
+        and result.choices
+        and result.choices[1]
+        and result.choices[1].message
+        and result.choices[1].message.content
+
+    if not text then return nil end
+
+    -- Strip any accidental markdown fences
+    text = text:gsub("```json", ""):gsub("```", ""):match("^%s*(.-)%s*$")
+
+    local ok2, decision = pcall(function()
+        return HttpService:JSONDecode(text)
+    end)
+
+    if not ok2 or not decision then
+        warn("Failed to parse AI response:", text)
+        return nil
+    end
+
+    return decision
+end
+
+-- ============================================================
+-- MOVEMENT (PATHFINDING FIXED)
+-- ============================================================
+
+local currentTargetPos = nil
+local moveConnection = nil
+local currentPath = nil
+
+local function stopCurrentMovement()
+    if moveConnection then
+        pcall(function() moveConnection:Disconnect() end)
+        moveConnection = nil
+    end
+    currentPath = nil
+end
+
+local function moveToWithPath(targetPos)
+    local hum = getHumanoid()
+    local root = getRoot()
+    if not hum or not root then return end
+
+    -- prevent spam
+    if currentTargetPos and (currentTargetPos - targetPos).Magnitude < 4 then
+        return
+    end
+
+    currentTargetPos = targetPos
+    stopCurrentMovement()
+
+    local path = PathfindingService:CreatePath({
+        AgentRadius = 2,
+        AgentHeight = 5,
+        AgentCanJump = true,
+        AgentJumpHeight = 7,
+        AgentMaxSlope = 45
+    })
+
+    local success = pcall(function()
+        path:ComputeAsync(root.Position, targetPos)
+    end)
+
+    if not success or path.Status ~= Enum.PathStatus.Success then
+        moveToWithPath(targetPos) -- fallback
+        return
+    end
+
+    currentPath = path
+    local waypoints = path:GetWaypoints()
+    local waypointIndex = 1
+
+    local function moveNext()
+        if not autoEnabled then return end
+        if waypointIndex > #waypoints then return end
+
+        local wp = waypoints[waypointIndex]
+
+        if wp.Action == Enum.PathWaypointAction.Jump then
+            hum:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+
+        hum:MoveTo(wp.Position)
+
+        -- keep interacting while moving
+        fireAllNearby()
+        fireLapButtons()
+    end
+
+    moveConnection = hum.MoveToFinished:Connect(function(reached)
+        if not autoEnabled then return end
+
+        if reached then
+            waypointIndex += 1
+            moveNext()
+        else
+            moveToWithPath(targetPos)
+        end
+    end)
+
+    path.Blocked:Connect(function()
+        moveToWithPath(targetPos)
+    end)
+
+    moveNext()
+end
+
+-- ============================================================
+-- CHASER MONITOR
+-- ============================================================
+
+local monitorConn = nil
+
+local function startChaserMonitor()
+    if monitorConn then pcall(function() monitorConn:Disconnect() end) end
+    monitorConn = RunService.Heartbeat:Connect(function()
+        if not autoEnabled then return end
+        local dist = getChaserDistance()
+        if dist < math.huge then
+            chaserLbl.Text = "Chaser: " .. math.floor(dist) .. " studs"
+            if dist < CHASER_DANGER_DIST then
+                chaserLbl.TextColor3 = Color3.fromRGB(255, 60, 60)
+            elseif dist < CHASER_DANGER_DIST * 2 then
+                chaserLbl.TextColor3 = Color3.fromRGB(255, 180, 30)
+            else
+                chaserLbl.TextColor3 = Color3.fromRGB(80, 200, 80)
+            end
+        else
+            chaserLbl.Text       = "Chaser: Not found"
+            chaserLbl.TextColor3 = Color3.fromRGB(80, 200, 80)
+        end
+    end)
+end
+
+local function stopChaserMonitor()
+    if monitorConn then
+        pcall(function() monitorConn:Disconnect() end)
+        monitorConn = nil
     end
 end
 
--- GUI
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "PlaceTeleportHub"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.Parent = lp:WaitForChild("PlayerGui")
+-- ============================================================
+-- MAIN AI LOOP
+-- ============================================================
 
-local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 240, 0, 340)
-Frame.Position = UDim2.new(0, 20, 0.25, 0)
-Frame.BackgroundColor3 = Color3.fromRGB(18, 18, 28)
-Frame.BorderSizePixel = 0
-Frame.Active = true
-Frame.Draggable = true
-Frame.Parent = ScreenGui
-Instance.new("UICorner", Frame).CornerRadius = UDim.new(0, 8)
+local aiLoopConn = nil
 
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 0, 38)
-Title.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
-Title.TextColor3 = Color3.new(1,1,1)
-Title.Text = "🚀 Place Teleport Hub"
-Title.Font = Enum.Font.GothamBold
-Title.TextSize = 14
-Title.BorderSizePixel = 0
-Title.Parent = Frame
-Instance.new("UICorner", Title).CornerRadius = UDim.new(0, 8)
+local function startAILoop()
+    if aiLoopConn then pcall(function() aiLoopConn:Disconnect() end) end
 
-local StatusLabel = Instance.new("TextLabel")
-StatusLabel.Size = UDim2.new(1, -10, 0, 24)
-StatusLabel.Position = UDim2.new(0, 5, 0, 42)
-StatusLabel.BackgroundTransparency = 1
-StatusLabel.TextColor3 = Color3.fromRGB(160,160,180)
-StatusLabel.Text = "Fetching places..."
-StatusLabel.Font = Enum.Font.Gotham
-StatusLabel.TextSize = 11
-StatusLabel.Parent = Frame
+    aiLoopConn = RunService.Heartbeat:Connect(function()
+        if not autoEnabled then return end
 
--- Scroll area
-local ScrollFrame = Instance.new("ScrollingFrame")
-ScrollFrame.Size = UDim2.new(1, -10, 1, -80)
-ScrollFrame.Position = UDim2.new(0, 5, 0, 70)
-ScrollFrame.BackgroundTransparency = 1
-ScrollFrame.BorderSizePixel = 0
-ScrollFrame.ScrollBarThickness = 4
-ScrollFrame.ScrollBarImageColor3 = Color3.fromRGB(0,150,255)
-ScrollFrame.Parent = Frame
+        local now = tick()
+        if now - lastAICall < AI_DECISION_EVERY then return end
+        lastAICall = now
 
-local Layout = Instance.new("UIListLayout")
-Layout.Padding = UDim.new(0, 5)
-Layout.SortOrder = Enum.SortOrder.LayoutOrder
-Layout.Parent = ScrollFrame
-
--- Create button
-local function makeButton(name, placeId, order)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, -8, 0, 36)
-    btn.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
-    btn.TextColor3 = Color3.fromRGB(220,220,255)
-    btn.Font = Enum.Font.GothamSemibold
-    btn.TextSize = 12
-    btn.TextXAlignment = Enum.TextXAlignment.Left
-    btn.BorderSizePixel = 0
-    btn.LayoutOrder = order
-    btn.Parent = ScrollFrame
-    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
-
-    local pad = Instance.new("UIPadding")
-    pad.PaddingLeft = UDim.new(0, 10)
-    pad.Parent = btn
-
-    -- Current place highlight
-    if placeId == game.PlaceId then
-        btn.BackgroundColor3 = Color3.fromRGB(0, 80, 160)
-        btn.Text = "📍 " .. name .. " (here)"
-    else
-        btn.Text = "🌐 " .. name
-    end
-
-    -- Click handler
-    btn.MouseButton1Click:Connect(function()
-    if placeId == game.PlaceId then
-        btn.Text = "⚠️ Already here!"
-        return
-    end
-
-    btn.Text = "⏳ Teleporting..."
-
-    local success = false
-
-    -- Try TeleportAsync
-    pcall(function()
-        TeleportService:TeleportAsync(placeId, {lp})
-        success = true
-    end)
-
-    task.wait(1)
-
-    -- Fallback to Teleport
-    if not success then
-        pcall(function()
-            TeleportService:Teleport(placeId, lp)
-            success = true
-        end)
-    end
-
-    -- If still failed
-    if not success then
-        btn.Text = "❌ Teleport blocked"
-    end
-end)
-
--- Fetch places
-task.spawn(function()
-    local ok, data = pcall(function()
-        local url = "https://develop.roblox.com/v1/universes/" .. universeId .. "/places?limit=100&sortOrder=Asc"
-        local res = httpGet(url)
-
-        if not res or res.StatusCode ~= 200 then
-            error("HTTP Error")
+        -- Emergency flee overrides AI if chaser is right on top of us
+        if getChaserDistance() < CHASER_DANGER_DIST * 0.6 then
+            local hum = getHumanoid()
+            local fp  = getFleePosition()
+            if hum and fp then
+                hum:MoveTo(fp)
+                actionLbl.Text = "Action: emergency flee"
+                chaserLbl.TextColor3 = Color3.fromRGB(255, 60, 60)
+            end
+            return
         end
 
-        return HttpService:JSONDecode(res.Body)
+        -- Async AI call so it doesn't block Heartbeat
+        task.spawn(function()
+            statusLbl.Text = "Status: Thinking..."
+            local state    = scanGameState()
+            local decision = callGroqAI(state)
+
+            if not autoEnabled then return end
+
+            if decision then
+                statusLbl.Text = "Status: Running"
+                executeAction(decision)
+            else
+                -- Fallback: fire all nearby and keep moving to last target
+                statusLbl.Text = "Status: AI error — fallback"
+                fireAllNearby()
+                fireLapButtons()
+                local hum  = getHumanoid()
+                local root = getRoot()
+                if hum and currentTarget and root then
+                    if (root.Position - currentTarget).Magnitude > WAYPOINT_REACH then
+                        hum:MoveTo(currentTarget)
+                    end
+                end
+            end
+        end)
     end)
+end
 
-    if not ok then
-        StatusLabel.Text = "❌ Failed to fetch places"
-        warn(data)
-        return
+local function stopAILoop()
+    if aiLoopConn then
+        pcall(function() aiLoopConn:Disconnect() end)
+        aiLoopConn = nil
     end
+end
 
-    local places = data and data.data
-    if not places or #places == 0 then
-        StatusLabel.Text = "❌ No places found"
-        return
+-- ============================================================
+-- BUTTONS
+-- ============================================================
+
+startBtn.MouseButton1Click:Connect(function()
+    if autoEnabled then return end
+    autoEnabled = true
+    lastAICall  = 0
+    startBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+    stopBtn.BackgroundColor3  = Color3.fromRGB(180, 60, 60)
+    statusLbl.Text = "Status: Starting..."
+    startChaserMonitor()
+    startAILoop()
+end)
+
+stopBtn.MouseButton1Click:Connect(function()
+    autoEnabled = false
+    stopAILoop()
+    stopChaserMonitor()
+    local hum  = getHumanoid()
+    local root = getRoot()
+    if hum and root then hum:MoveTo(root.Position) end
+    statusLbl.Text       = "Status: Stopped"
+    actionLbl.Text       = "Action: —"
+    chaserLbl.Text       = "Chaser: —"
+    chaserLbl.TextColor3 = Color3.fromRGB(180, 180, 180)
+    targetLbl.Text       = "Target: —"
+    reasonLbl.Text       = "Reason: —"
+    startBtn.BackgroundColor3 = Color3.fromRGB(60, 180, 80)
+    stopBtn.BackgroundColor3  = Color3.fromRGB(80, 80, 80)
+end)
+
+scanBtn.MouseButton1Click:Connect(function()
+    local state = scanGameState()
+    statusLbl.Text = "Exits:" .. #state.exits
+        .. " Btns:" .. #state.buttons
+        .. " CDs:" .. #state.clickDetectors
+    targetLbl.Text = "LapBtns: " .. #state.lapButtons
+end)
+
+player.CharacterAdded:Connect(function()
+    task.wait(1)
+    if autoEnabled then
+        stopAILoop()
+        lastAICall = 0
+        startAILoop()
     end
-
-    StatusLabel.Text = "✅ Found " .. #places .. " places"
-
-    for i, place in ipairs(places) do
-        makeButton(place.name or ("Place "..i), place.placeId, i)
-    end
-
-    ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, #places * 41)
 end)
