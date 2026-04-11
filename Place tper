@@ -10,7 +10,7 @@ local player = Players.LocalPlayer
 -- ============================================================
 -- CONFIG — edit these
 -- ============================================================
-local GROQ_API_KEY       = "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"
+local GROQ_API_KEY       = ""
 local GROQ_MODEL         = "llama-3.3-70b-versatile"
 local AI_DECISION_EVERY  = 1.5   -- seconds between AI calls
 local CHASER_DANGER_DIST = 30
