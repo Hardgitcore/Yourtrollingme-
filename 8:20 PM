@@ -14,6 +14,12 @@ local subLevelWatcher = nil
 
 local LAP_FOLDERS = {"Lap1","Lap2","Lap3","Lap4"}
 
+-- throttle timers
+local weakTimer   = 0
+local fakeTimer   = 0
+local wraithTimer = 0
+local wallsTimer  = 0
+
 -- ============================================================
 -- EXIT HELPERS
 -- ============================================================
@@ -117,6 +123,7 @@ iconCircle.BackgroundColor3 = Color3.fromRGB(0, 180, 255)
 iconCircle.BorderSizePixel = 0
 iconCircle.Parent = titleBar
 Instance.new("UICorner", iconCircle).CornerRadius = UDim.new(1, 0)
+
 local iconGrad = Instance.new("UIGradient")
 iconGrad.Color = ColorSequence.new({
     ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 220, 255)),
@@ -298,11 +305,11 @@ local y = 90
 local function nextY() local v = y y = y + 50 return v end
 
 makeDivider(86, "COMBAT")
-local clickBtn,  clickStroke,  clickBar,  clickText,  clickPill,  clickPillText  = makeToggle("Click Detectors",        nextY(), Color3.fromRGB(60,160,255))
-local fakeBtn,   fakeStroke,   fakeBar,   fakeText,   fakePill,   fakePillText   = makeToggle("Delete Fake Objects",    nextY(), Color3.fromRGB(255,160,40))
-local wraithBtn, wraithStroke, wraithBar, wraithText, wraithPill, wraithPillText = makeToggle("Delete Wraith Objects",  nextY(), Color3.fromRGB(160,80,255))
-local wallsBtn,  wallsStroke,  wallsBar,  wallsText,  wallsPill,  wallsPillText  = makeToggle("Delete FakeWalls",       nextY(), Color3.fromRGB(255,140,40))
-local weakBtn,   weakStroke,   weakBar,   weakText,   weakPill,   weakPillText   = makeToggle("Delete WeakWalls",       nextY(), Color3.fromRGB(220,80,140))
+local clickBtn,  clickStroke,  clickBar,  clickText,  clickPill,  clickPillText  = makeToggle("Click Detectors",       nextY(), Color3.fromRGB(60,160,255))
+local fakeBtn,   fakeStroke,   fakeBar,   fakeText,   fakePill,   fakePillText   = makeToggle("Delete Fake Objects",   nextY(), Color3.fromRGB(255,160,40))
+local wraithBtn, wraithStroke, wraithBar, wraithText, wraithPill, wraithPillText = makeToggle("Delete Wraith Objects", nextY(), Color3.fromRGB(160,80,255))
+local wallsBtn,  wallsStroke,  wallsBar,  wallsText,  wallsPill,  wallsPillText  = makeToggle("Delete FakeWalls",      nextY(), Color3.fromRGB(255,140,40))
+local weakBtn,   weakStroke,   weakBar,   weakText,   weakPill,   weakPillText   = makeToggle("Delete WeakWalls",      nextY(), Color3.fromRGB(220,80,140))
 
 makeDivider(y + 2, "VISION")
 y = y + 10
@@ -311,12 +318,11 @@ local hideBtn, hideStroke, hideBar, hideText, hidePill, hidePillText = makeToggl
 
 makeDivider(y + 2, "UTILITY")
 y = y + 10
-local tpBtn,        tpStroke,        tpBar,        tpText,        tpPill,        tpPillText        = makeToggle("Teleport to Exit",        nextY(), Color3.fromRGB(60,220,120))
-local promptBtn,    promptStroke,    promptBar,    promptText,    promptPill,    promptPillText    = makeToggle("Auto Beat Sublevels",      nextY(), Color3.fromRGB(100,200,150))
-local altTpBtn,     altTpStroke,     altTpBar,     altTpText,     altTpPill,     altTpPillText     = makeToggle("Teleport to Alt Exit",    nextY(), Color3.fromRGB(80,200,255))
-local altPromptBtn, altPromptStroke, altPromptBar, altPromptText, altPromptPill, altPromptPillText = makeToggle("Auto Beat Alt Exits",     nextY(), Color3.fromRGB(140,220,255))
+local tpBtn,        tpStroke,        tpBar,        tpText,        tpPill,        tpPillText        = makeToggle("Teleport to Exit",      nextY(), Color3.fromRGB(60,220,120))
+local promptBtn,    promptStroke,    promptBar,    promptText,    promptPill,    promptPillText    = makeToggle("Auto Beat Sublevels",    nextY(), Color3.fromRGB(100,200,150))
+local altTpBtn,     altTpStroke,     altTpBar,     altTpText,     altTpPill,     altTpPillText     = makeToggle("Teleport to Alt Exit",  nextY(), Color3.fromRGB(80,200,255))
+local altPromptBtn, altPromptStroke, altPromptBar, altPromptText, altPromptPill, altPromptPillText = makeToggle("Auto Beat Alt Exits",   nextY(), Color3.fromRGB(140,220,255))
 
--- auto size frame
 mainFrame.Size = UDim2.new(0, 248, 0, y + 10)
 mainFrame.Position = UDim2.new(0, 16, 0.5, -(y + 10) / 2)
 
@@ -462,6 +468,7 @@ end)
 
 weakBtn.MouseButton1Click:Connect(function()
     weakEnabled = flip(weakEnabled, weakBtn, weakStroke, weakBar, weakText, weakPill, weakPillText, Color3.fromRGB(220,80,140))
+    weakTimer = 0
 end)
 
 espBtn.MouseButton1Click:Connect(function()
@@ -483,9 +490,7 @@ end)
 tpBtn.MouseButton1Click:Connect(function()
     pcall(function()
         local part = getExitPart()
-        if part then
-            player.Character.HumanoidRootPart.CFrame = part.CFrame + Vector3.new(0, 5, 0)
-        end
+        if part then player.Character.HumanoidRootPart.CFrame = part.CFrame + Vector3.new(0, 5, 0) end
     end)
 end)
 
@@ -496,9 +501,7 @@ end)
 altTpBtn.MouseButton1Click:Connect(function()
     pcall(function()
         local part = getAltExitPart()
-        if part then
-            player.Character.HumanoidRootPart.CFrame = part.CFrame + Vector3.new(0, 5, 0)
-        end
+        if part then player.Character.HumanoidRootPart.CFrame = part.CFrame + Vector3.new(0, 5, 0) end
     end)
 end)
 
@@ -565,12 +568,29 @@ end
 -- MAIN HEARTBEAT
 -- ============================================================
 
-RunService.Heartbeat:Connect(function()
-    if clickEnabled  then fireClicks()      end
-    if fakeEnabled   then deleteFake()      end
-    if wraithEnabled then deleteWraith()    end
-    if wallsEnabled  then deleteFakeWalls() end
-    if weakEnabled   then deleteWeak()      end
+RunService.Heartbeat:Connect(function(dt)
+    if clickEnabled then fireClicks() end
+
+    -- throttled deletions — run every 2 seconds to avoid lag
+    if fakeEnabled then
+        fakeTimer += dt
+        if fakeTimer >= 2 then fakeTimer = 0 deleteFake() end
+    end
+
+    if wraithEnabled then
+        wraithTimer += dt
+        if wraithTimer >= 2 then wraithTimer = 0 deleteWraith() end
+    end
+
+    if wallsEnabled then
+        wallsTimer += dt
+        if wallsTimer >= 2 then wallsTimer = 0 deleteFakeWalls() end
+    end
+
+    if weakEnabled then
+        weakTimer += dt
+        if weakTimer >= 2 then weakTimer = 0 deleteWeak() end
+    end
 
     if promptEnabled then
         local prompt = getExitPrompt()
