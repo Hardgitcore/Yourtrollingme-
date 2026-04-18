@@ -1,0 +1,1645 @@
+-- Executor Script
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
+local player = Players.LocalPlayer
+
+local selectedRemote = nil
+local selectedPlayer = nil
+local loopEnabled = false
+local loopThread = nil
+local remoteList = {}
+local rowItems = {}
+local logEntries = {}
+local spyEnabled = false
+local hookRef = nil
+local guiVisible = true
+
+local bypassPlayerArg = false
+local bypassSlowFire = false
+local bypassInvoke = false
+
+-- ============================================================
+-- SCREEN GUI
+-- ============================================================
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = HttpService:GenerateGUID(false)
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+local ok2, coreGui = pcall(function() return game:GetService("CoreGui") end)
+if gethui then
+    screenGui.Parent = gethui()
+elseif ok2 then
+    screenGui.Parent = coreGui
+else
+    screenGui.Parent = player:WaitForChild("PlayerGui")
+end
+
+-- ============================================================
+-- MOBILE TOGGLE BUTTON (outside main, always visible)
+-- ============================================================
+
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Size = UDim2.new(0, 44, 0, 44)
+toggleBtn.Position = UDim2.new(1, -54, 0.5, -22)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(18, 8, 35)
+toggleBtn.BorderSizePixel = 0
+toggleBtn.Text = "R"
+toggleBtn.TextColor3 = Color3.fromRGB(180, 80, 255)
+toggleBtn.TextSize = 16
+toggleBtn.Font = Enum.Font.GothamBold
+toggleBtn.ZIndex = 99999
+toggleBtn.Parent = screenGui
+Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(1, 0)
+local tbs = Instance.new("UIStroke")
+tbs.Color = Color3.fromRGB(160, 0, 255)
+tbs.Thickness = 1.5
+tbs.Transparency = 0.2
+tbs.Parent = toggleBtn
+
+-- ============================================================
+-- MAIN FRAME (only ONE, defined once)
+-- ============================================================
+
+local main = Instance.new("Frame")
+main.Size = UDim2.new(0, 860, 0, 600)
+main.Position = UDim2.new(0.5, -430, 0.5, -300)
+main.BackgroundColor3 = Color3.fromRGB(10, 10, 16)
+main.BorderSizePixel = 0
+main.Active = true
+main.Draggable = true
+main.Visible = true
+main.Parent = screenGui
+Instance.new("UICorner", main).CornerRadius = UDim.new(0, 10)
+local ms = Instance.new("UIStroke")
+ms.Color = Color3.fromRGB(160, 0, 255)
+ms.Thickness = 1.2
+ms.Transparency = 0.3
+ms.Parent = main
+
+-- toggle logic
+local function setGuiVisible(v)
+    guiVisible = v
+    main.Visible = v
+    toggleBtn.BackgroundColor3 = v and Color3.fromRGB(18,8,35) or Color3.fromRGB(35,8,8)
+    tbs.Color = v and Color3.fromRGB(160,0,255) or Color3.fromRGB(200,50,50)
+    toggleBtn.TextColor3 = v and Color3.fromRGB(180,80,255) or Color3.fromRGB(255,80,80)
+end
+
+toggleBtn.MouseButton1Click:Connect(function()
+    setGuiVisible(not guiVisible)
+end)
+
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if input.KeyCode == Enum.KeyCode.RightShift then
+        setGuiVisible(not guiVisible)
+    end
+end)
+
+-- ============================================================
+-- TITLE BAR
+-- ============================================================
+
+local titleBar = Instance.new("Frame")
+titleBar.Size = UDim2.new(1, 0, 0, 42)
+titleBar.BackgroundColor3 = Color3.fromRGB(7, 7, 12)
+titleBar.BorderSizePixel = 0
+titleBar.Parent = main
+Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 10)
+
+local tsq = Instance.new("Frame")
+tsq.Size = UDim2.new(1, 0, 0, 10)
+tsq.Position = UDim2.new(0, 0, 1, -10)
+tsq.BackgroundColor3 = Color3.fromRGB(7, 7, 12)
+tsq.BorderSizePixel = 0
+tsq.Parent = titleBar
+
+local tg = Instance.new("UIGradient")
+tg.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(160, 0, 255)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 160, 255))
+})
+tg.Rotation = 90
+tg.Transparency = NumberSequence.new({
+    NumberSequenceKeypoint.new(0, 0.78),
+    NumberSequenceKeypoint.new(1, 0.78)
+})
+tg.Parent = titleBar
+
+local ta = Instance.new("Frame")
+ta.Size = UDim2.new(1, 0, 0, 1)
+ta.Position = UDim2.new(0, 0, 1, -1)
+ta.BackgroundColor3 = Color3.fromRGB(160, 0, 255)
+ta.BackgroundTransparency = 0.3
+ta.BorderSizePixel = 0
+ta.Parent = titleBar
+
+local titleTxt = Instance.new("TextLabel")
+titleTxt.Size = UDim2.new(1, -80, 1, 0)
+titleTxt.Position = UDim2.new(0, 12, 0, 0)
+titleTxt.BackgroundTransparency = 1
+titleTxt.Text = "RSpy  //  Remote Scanner & Logger"
+titleTxt.TextColor3 = Color3.fromRGB(200, 200, 220)
+titleTxt.TextSize = 13
+titleTxt.Font = Enum.Font.GothamBold
+titleTxt.TextXAlignment = Enum.TextXAlignment.Left
+titleTxt.Parent = titleBar
+
+local versionTxt = Instance.new("TextLabel")
+versionTxt.Size = UDim2.new(0, 60, 1, 0)
+versionTxt.Position = UDim2.new(1, -68, 0, 0)
+versionTxt.BackgroundTransparency = 1
+versionTxt.Text = "v3.1"
+versionTxt.TextColor3 = Color3.fromRGB(100, 0, 200)
+versionTxt.TextSize = 10
+versionTxt.Font = Enum.Font.GothamBold
+versionTxt.TextXAlignment = Enum.TextXAlignment.Right
+versionTxt.Parent = titleBar
+
+-- ============================================================
+-- TAB BAR (sits below title, INSIDE main, uses scale so it never overflows)
+-- ============================================================
+
+local tabBar = Instance.new("Frame")
+tabBar.Size = UDim2.new(1, 0, 0, 36)
+tabBar.Position = UDim2.new(0, 0, 0, -40)
+tabBar.BackgroundColor3 = Color3.fromRGB(12, 12, 20)
+tabBar.BorderSizePixel = 0
+tabBar.Parent = main
+
+local tabLayout = Instance.new("UIListLayout")
+tabLayout.FillDirection = Enum.FillDirection.Horizontal
+tabLayout.Padding = UDim.new(0, 3)
+tabLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+tabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+tabLayout.Parent = tabBar
+
+local tabPad = Instance.new("UIPadding")
+tabPad.PaddingLeft = UDim.new(0, 8)
+tabPad.PaddingTop = UDim.new(0, 5)
+tabPad.Parent = tabBar
+
+local tabAccentLine = Instance.new("Frame")
+tabAccentLine.Size = UDim2.new(1, 0, 0, 1)
+tabAccentLine.Position = UDim2.new(0, 0, 1, -1)
+tabAccentLine.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+tabAccentLine.BorderSizePixel = 0
+tabAccentLine.Parent = tabBar
+
+local panels = {}
+local tabBtns = {}
+
+-- Tab width calculated to always fit 5 tabs inside 860px
+local TAB_W = 158
+
+local function makeTab(name, index)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, TAB_W, 0, 26)
+    btn.BackgroundColor3 = index == 1 and Color3.fromRGB(28,10,50) or Color3.fromRGB(18,18,28)
+    btn.BorderSizePixel = 0
+    btn.Text = name
+    btn.TextColor3 = index == 1 and Color3.fromRGB(200,100,255) or Color3.fromRGB(100,100,140)
+    btn.TextSize = 11
+    btn.Font = Enum.Font.GothamBold
+    btn.AutoButtonColor = false
+    btn.Parent = tabBar
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+    local s = Instance.new("UIStroke")
+    s.Color = index == 1 and Color3.fromRGB(160,0,255) or Color3.fromRGB(40,40,60)
+    s.Thickness = 1
+    s.Transparency = index == 1 and 0.2 or 0.5
+    s.Parent = btn
+    tabBtns[index] = {btn = btn, stroke = s}
+    return btn
+end
+
+local tab1Btn = makeTab("Fire Remotes", 1)
+local tab2Btn = makeTab("Spy Logger",   2)
+local tab3Btn = makeTab("Code Output",  3)
+local tab4Btn = makeTab("Bypass",       4)
+local tab5Btn = makeTab("Decrypter",    5)
+
+local function makePanel(visible)
+    local p = Instance.new("Frame")
+    p.Size = UDim2.new(1, 0, 1, -78)
+    p.Position = UDim2.new(0, 0, 0, 78)
+    p.BackgroundTransparency = 1
+    p.BorderSizePixel = 0
+    p.Visible = visible
+    p.Parent = main
+    return p
+end
+
+local panel1 = makePanel(true)
+local panel2 = makePanel(false)
+local panel3 = makePanel(false)
+local panel4 = makePanel(false)
+local panel5 = makePanel(false)
+panels = {panel1, panel2, panel3, panel4, panel5}
+
+local function switchTab(index)
+    for i, p in ipairs(panels) do p.Visible = i == index end
+    for i, t in ipairs(tabBtns) do
+        if i == index then
+            t.btn.BackgroundColor3 = Color3.fromRGB(28,10,50)
+            t.btn.TextColor3 = Color3.fromRGB(200,100,255)
+            t.stroke.Color = Color3.fromRGB(160,0,255)
+            t.stroke.Transparency = 0.2
+        else
+            t.btn.BackgroundColor3 = Color3.fromRGB(18,18,28)
+            t.btn.TextColor3 = Color3.fromRGB(100,100,140)
+            t.stroke.Color = Color3.fromRGB(40,40,60)
+            t.stroke.Transparency = 0.5
+        end
+    end
+end
+
+tab1Btn.MouseButton1Click:Connect(function() switchTab(1) end)
+tab2Btn.MouseButton1Click:Connect(function() switchTab(2) end)
+tab3Btn.MouseButton1Click:Connect(function() switchTab(3) end)
+tab4Btn.MouseButton1Click:Connect(function() switchTab(4) end)
+tab5Btn.MouseButton1Click:Connect(function() switchTab(5) end)
+
+-- ============================================================
+-- SHARED HELPERS
+-- ============================================================
+
+local function makeStroke(parent, color, thickness, transparency)
+    local s = Instance.new("UIStroke")
+    s.Color = color or Color3.fromRGB(50,50,80)
+    s.Thickness = thickness or 1
+    s.Transparency = transparency or 0.5
+    s.Parent = parent
+    return s
+end
+
+local function makeSectionLabel(parent, text, yPos)
+    local l = Instance.new("TextLabel")
+    l.Size = UDim2.new(1, 0, 0, 13)
+    l.Position = UDim2.new(0, 0, 0, yPos)
+    l.BackgroundTransparency = 1
+    l.Text = text
+    l.TextColor3 = Color3.fromRGB(70,70,110)
+    l.TextSize = 9
+    l.Font = Enum.Font.GothamBold
+    l.TextXAlignment = Enum.TextXAlignment.Left
+    l.Parent = parent
+    return l
+end
+
+local function makeBtn(parent, text, x, y, w, h, bg, tc, sc)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, w, 0, h)
+    btn.Position = UDim2.new(0, x, 0, y)
+    btn.BackgroundColor3 = bg
+    btn.BorderSizePixel = 0
+    btn.Text = text
+    btn.TextColor3 = tc
+    btn.TextSize = 11
+    btn.Font = Enum.Font.GothamBold
+    btn.AutoButtonColor = false
+    btn.Parent = parent
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+    makeStroke(btn, sc, 1, 0.3)
+    return btn
+end
+
+-- ============================================================
+-- PANEL 1 - FIRE REMOTES
+-- ============================================================
+
+local leftPanel = Instance.new("Frame")
+leftPanel.Size = UDim2.new(0, 260, 1, -10)
+leftPanel.Position = UDim2.new(0, 10, 0, 5)
+leftPanel.BackgroundTransparency = 1
+leftPanel.BorderSizePixel = 0
+leftPanel.Parent = panel1
+
+local searchBox = Instance.new("TextBox")
+searchBox.Size = UDim2.new(1, 0, 0, 28)
+searchBox.Position = UDim2.new(0, 0, 0, 0)
+searchBox.BackgroundColor3 = Color3.fromRGB(18,18,28)
+searchBox.BorderSizePixel = 0
+searchBox.PlaceholderText = "Search remotes..."
+searchBox.PlaceholderColor3 = Color3.fromRGB(70,70,100)
+searchBox.Text = ""
+searchBox.TextColor3 = Color3.fromRGB(200,200,220)
+searchBox.TextSize = 11
+searchBox.Font = Enum.Font.Gotham
+searchBox.ClearTextOnFocus = false
+searchBox.Parent = leftPanel
+Instance.new("UICorner", searchBox).CornerRadius = UDim.new(0, 6)
+makeStroke(searchBox, Color3.fromRGB(50,50,80))
+local spad = Instance.new("UIPadding") spad.PaddingLeft = UDim.new(0,8) spad.Parent = searchBox
+
+local remoteScroll = Instance.new("ScrollingFrame")
+remoteScroll.Size = UDim2.new(1, 0, 1, -80)
+remoteScroll.Position = UDim2.new(0, 0, 0, 34)
+remoteScroll.BackgroundColor3 = Color3.fromRGB(14,14,22)
+remoteScroll.BorderSizePixel = 0
+remoteScroll.ScrollBarThickness = 3
+remoteScroll.ScrollBarImageColor3 = Color3.fromRGB(140,0,255)
+remoteScroll.CanvasSize = UDim2.new(0,0,0,0)
+remoteScroll.Parent = leftPanel
+Instance.new("UICorner", remoteScroll).CornerRadius = UDim.new(0, 6)
+makeStroke(remoteScroll, Color3.fromRGB(35,35,55))
+local rl = Instance.new("UIListLayout") rl.Padding = UDim.new(0,3) rl.Parent = remoteScroll
+local rp = Instance.new("UIPadding") rp.PaddingTop = UDim.new(0,5) rp.PaddingLeft = UDim.new(0,5) rp.PaddingRight = UDim.new(0,5) rp.Parent = remoteScroll
+
+local rescanBtn = Instance.new("TextButton")
+rescanBtn.Size = UDim2.new(1, 0, 0, 34)
+rescanBtn.Position = UDim2.new(0, 0, 1, -38)
+rescanBtn.BackgroundColor3 = Color3.fromRGB(18,8,35)
+rescanBtn.BorderSizePixel = 0
+rescanBtn.Text = "RE-SCAN REMOTES"
+rescanBtn.TextColor3 = Color3.fromRGB(160,80,255)
+rescanBtn.TextSize = 12
+rescanBtn.Font = Enum.Font.GothamBold
+rescanBtn.AutoButtonColor = false
+rescanBtn.Parent = leftPanel
+Instance.new("UICorner", rescanBtn).CornerRadius = UDim.new(0, 6)
+local rss = makeStroke(rescanBtn, Color3.fromRGB(140,0,255), 1, 0.4)
+
+local rightPanel = Instance.new("Frame")
+rightPanel.Size = UDim2.new(1, -290, 1, -10)
+rightPanel.Position = UDim2.new(0, 278, 0, 5)
+rightPanel.BackgroundTransparency = 1
+rightPanel.BorderSizePixel = 0
+rightPanel.Parent = panel1
+
+makeSectionLabel(rightPanel, "SELECTED REMOTE", 0)
+local remoteDisplay = Instance.new("TextBox")
+remoteDisplay.Size = UDim2.new(1, 0, 0, 28)
+remoteDisplay.Position = UDim2.new(0, 0, 0, 14)
+remoteDisplay.BackgroundColor3 = Color3.fromRGB(18,18,28)
+remoteDisplay.BorderSizePixel = 0
+remoteDisplay.PlaceholderText = "No remote selected..."
+remoteDisplay.PlaceholderColor3 = Color3.fromRGB(60,60,90)
+remoteDisplay.Text = ""
+remoteDisplay.TextEditable = false
+remoteDisplay.TextColor3 = Color3.fromRGB(160,80,255)
+remoteDisplay.TextSize = 11
+remoteDisplay.Font = Enum.Font.GothamBold
+remoteDisplay.TextXAlignment = Enum.TextXAlignment.Left
+remoteDisplay.Parent = rightPanel
+Instance.new("UICorner", remoteDisplay).CornerRadius = UDim.new(0, 6)
+makeStroke(remoteDisplay, Color3.fromRGB(45,45,70))
+local rdp = Instance.new("UIPadding") rdp.PaddingLeft = UDim.new(0,8) rdp.Parent = remoteDisplay
+
+makeSectionLabel(rightPanel, "ARGUMENTS  (comma separated: hello, 50, true)", 48)
+local argBox = Instance.new("TextBox")
+argBox.Size = UDim2.new(1, 0, 0, 28)
+argBox.Position = UDim2.new(0, 0, 0, 62)
+argBox.BackgroundColor3 = Color3.fromRGB(18,18,28)
+argBox.BorderSizePixel = 0
+argBox.PlaceholderText = 'e.g.  "attack", 50, true'
+argBox.PlaceholderColor3 = Color3.fromRGB(70,70,100)
+argBox.Text = ""
+argBox.TextColor3 = Color3.fromRGB(200,200,220)
+argBox.TextSize = 11
+argBox.Font = Enum.Font.Gotham
+argBox.ClearTextOnFocus = false
+argBox.Parent = rightPanel
+Instance.new("UICorner", argBox).CornerRadius = UDim.new(0, 6)
+makeStroke(argBox, Color3.fromRGB(45,45,70))
+local abp = Instance.new("UIPadding") abp.PaddingLeft = UDim.new(0,8) abp.Parent = argBox
+
+makeSectionLabel(rightPanel, "TARGET PLAYER", 96)
+local playerScroll = Instance.new("ScrollingFrame")
+playerScroll.Size = UDim2.new(1, 0, 0, 110)
+playerScroll.Position = UDim2.new(0, 0, 0, 110)
+playerScroll.BackgroundColor3 = Color3.fromRGB(14,14,22)
+playerScroll.BorderSizePixel = 0
+playerScroll.ScrollBarThickness = 3
+playerScroll.ScrollBarImageColor3 = Color3.fromRGB(140,0,255)
+playerScroll.CanvasSize = UDim2.new(0,0,0,0)
+playerScroll.Parent = rightPanel
+Instance.new("UICorner", playerScroll).CornerRadius = UDim.new(0, 6)
+makeStroke(playerScroll, Color3.fromRGB(35,35,55))
+local pl = Instance.new("UIListLayout") pl.Padding = UDim.new(0,3) pl.Parent = playerScroll
+local pp2 = Instance.new("UIPadding") pp2.PaddingTop = UDim.new(0,5) pp2.PaddingLeft = UDim.new(0,5) pp2.PaddingRight = UDim.new(0,5) pp2.Parent = playerScroll
+
+local selectedPlayerRows = {}
+
+local function makePlayerRow(p)
+    local row = Instance.new("TextButton")
+    row.Size = UDim2.new(1, 0, 0, 24)
+    row.BackgroundColor3 = Color3.fromRGB(20,20,32)
+    row.BorderSizePixel = 0
+    row.Text = p.Name
+    row.TextColor3 = Color3.fromRGB(180,180,210)
+    row.TextSize = 11
+    row.Font = Enum.Font.GothamBold
+    row.AutoButtonColor = false
+    row.Parent = playerScroll
+    Instance.new("UICorner", row).CornerRadius = UDim.new(0, 5)
+    local rowStroke = makeStroke(row, Color3.fromRGB(50,50,80), 1, 0.5)
+    selectedPlayerRows[p] = {row = row, stroke = rowStroke}
+    row.MouseButton1Click:Connect(function()
+        for _, item in pairs(selectedPlayerRows) do
+            item.row.BackgroundColor3 = Color3.fromRGB(20,20,32)
+            item.row.TextColor3 = Color3.fromRGB(180,180,210)
+            item.stroke.Color = Color3.fromRGB(50,50,80)
+        end
+        if selectedPlayer == p then
+            selectedPlayer = nil
+        else
+            selectedPlayer = p
+            row.BackgroundColor3 = Color3.fromRGB(30,10,50)
+            row.TextColor3 = Color3.fromRGB(200,100,255)
+            rowStroke.Color = Color3.fromRGB(160,0,255)
+        end
+    end)
+end
+
+local function refreshPlayers()
+    for _, child in ipairs(playerScroll:GetChildren()) do
+        if child:IsA("TextButton") then child:Destroy() end
+    end
+    selectedPlayerRows = {}
+    local all = Players:GetPlayers()
+    for _, p in ipairs(all) do makePlayerRow(p) end
+    playerScroll.CanvasSize = UDim2.new(0,0,0,#all * 27 + 10)
+end
+
+Players.PlayerAdded:Connect(refreshPlayers)
+Players.PlayerRemoving:Connect(function(p)
+    if selectedPlayer == p then selectedPlayer = nil end
+    refreshPlayers()
+end)
+
+local bw = 180
+local fireSingleBtn = makeBtn(rightPanel, "FIRE SINGLE",     0,        228, bw, 32, Color3.fromRGB(16,32,16), Color3.fromRGB(80,220,100), Color3.fromRGB(60,200,80))
+local fireAllBtn    = makeBtn(rightPanel, "FIRE ALL PLAYERS", bw+4,    228, bw, 32, Color3.fromRGB(16,16,34), Color3.fromRGB(100,160,255), Color3.fromRGB(80,120,220))
+local nukeBtn       = makeBtn(rightPanel, "NUKE 100x",       (bw+4)*2, 228, bw, 32, Color3.fromRGB(34,16,8),  Color3.fromRGB(255,140,40),  Color3.fromRGB(220,100,20))
+
+local loopBtn = Instance.new("TextButton")
+loopBtn.Size = UDim2.new(0, 272, 0, 30)
+loopBtn.Position = UDim2.new(0, 0, 0, 266)
+loopBtn.BackgroundColor3 = Color3.fromRGB(16,16,28)
+loopBtn.BorderSizePixel = 0
+loopBtn.Text = "LOOP: OFF"
+loopBtn.TextColor3 = Color3.fromRGB(120,120,170)
+loopBtn.TextSize = 11
+loopBtn.Font = Enum.Font.GothamBold
+loopBtn.AutoButtonColor = false
+loopBtn.Parent = rightPanel
+Instance.new("UICorner", loopBtn).CornerRadius = UDim.new(0, 6)
+local loopStroke = makeStroke(loopBtn, Color3.fromRGB(70,70,120), 1, 0.4)
+
+local copyCodeBtn = makeBtn(rightPanel, "COPY FIRE CODE", 276, 266, 272, 30, Color3.fromRGB(16,28,28), Color3.fromRGB(60,220,200), Color3.fromRGB(40,180,160))
+
+local bypassStrip = Instance.new("Frame")
+bypassStrip.Size = UDim2.new(1, 0, 0, 22)
+bypassStrip.Position = UDim2.new(0, 0, 0, 302)
+bypassStrip.BackgroundColor3 = Color3.fromRGB(14,14,22)
+bypassStrip.BorderSizePixel = 0
+bypassStrip.Parent = rightPanel
+Instance.new("UICorner", bypassStrip).CornerRadius = UDim.new(0, 4)
+local bypassStripTxt = Instance.new("TextLabel")
+bypassStripTxt.Size = UDim2.new(1, -10, 1, 0)
+bypassStripTxt.Position = UDim2.new(0, 8, 0, 0)
+bypassStripTxt.BackgroundTransparency = 1
+bypassStripTxt.Text = "Bypass: none active -- configure in Bypass tab"
+bypassStripTxt.TextColor3 = Color3.fromRGB(60,60,90)
+bypassStripTxt.TextSize = 10
+bypassStripTxt.Font = Enum.Font.Gotham
+bypassStripTxt.TextXAlignment = Enum.TextXAlignment.Left
+bypassStripTxt.Parent = bypassStrip
+
+local statusBar = Instance.new("TextLabel")
+statusBar.Size = UDim2.new(1, 0, 0, 20)
+statusBar.Position = UDim2.new(0, 0, 0, 330)
+statusBar.BackgroundColor3 = Color3.fromRGB(14,14,22)
+statusBar.BorderSizePixel = 0
+statusBar.Text = "Select a remote from the list"
+statusBar.TextColor3 = Color3.fromRGB(70,70,110)
+statusBar.TextSize = 10
+statusBar.Font = Enum.Font.Gotham
+statusBar.Parent = rightPanel
+Instance.new("UICorner", statusBar).CornerRadius = UDim.new(0, 4)
+
+-- Tips Box (sits below statusBar in rightPanel)
+local tipsBox = Instance.new("Frame")
+tipsBox.Size = UDim2.new(1, 0, 0, 110)
+tipsBox.Position = UDim2.new(0, 0, 0, 356)
+tipsBox.BackgroundColor3 = Color3.fromRGB(14, 12, 22)
+tipsBox.BorderSizePixel = 0
+tipsBox.Parent = rightPanel
+Instance.new("UICorner", tipsBox).CornerRadius = UDim.new(0, 6)
+makeStroke(tipsBox, Color3.fromRGB(80, 40, 140), 1, 0.4)
+
+local tipsHeader = Instance.new("TextLabel")
+tipsHeader.Size = UDim2.new(1, -10, 0, 16)
+tipsHeader.Position = UDim2.new(0, 8, 0, 5)
+tipsHeader.BackgroundTransparency = 1
+tipsHeader.Text = "TIPS"
+tipsHeader.TextColor3 = Color3.fromRGB(140, 60, 220)
+tipsHeader.TextSize = 9
+tipsHeader.Font = Enum.Font.GothamBold
+tipsHeader.TextXAlignment = Enum.TextXAlignment.Left
+tipsHeader.Parent = tipsBox
+
+local tipsDot = Instance.new("Frame")
+tipsDot.Size = UDim2.new(0, 5, 0, 5)
+tipsDot.Position = UDim2.new(0, 44, 0, 6)
+tipsDot.BackgroundColor3 = Color3.fromRGB(140, 60, 220)
+tipsDot.BorderSizePixel = 0
+tipsDot.Parent = tipsBox
+Instance.new("UICorner", tipsDot).CornerRadius = UDim.new(1, 0)
+
+local tipsTxt = Instance.new("TextLabel")
+tipsTxt.Size = UDim2.new(1, -16, 1, -24)
+tipsTxt.Position = UDim2.new(0, 8, 0, 22)
+tipsTxt.BackgroundTransparency = 1
+tipsTxt.Text = "Select a remote from the list on the left to get started."
+tipsTxt.TextColor3 = Color3.fromRGB(120, 100, 160)
+tipsTxt.TextSize = 10
+tipsTxt.Font = Enum.Font.Gotham
+tipsTxt.TextWrapped = true
+tipsTxt.TextXAlignment = Enum.TextXAlignment.Left
+tipsTxt.TextYAlignment = Enum.TextYAlignment.Top
+tipsTxt.Parent = tipsBox
+
+local function setStatus(text, color)
+    statusBar.Text = text
+    statusBar.TextColor3 = color or Color3.fromRGB(70,70,110)
+end
+
+local function updateBypassStrip()
+    local active = {}
+    if bypassPlayerArg then table.insert(active, "Player Arg") end
+    if bypassSlowFire  then table.insert(active, "Slow Fire") end
+    if bypassInvoke    then table.insert(active, "InvokeServer") end
+    if #active == 0 then
+        bypassStripTxt.Text = "Bypass: none active -- configure in Bypass tab"
+        bypassStripTxt.TextColor3 = Color3.fromRGB(60,60,90)
+        bypassStrip.BackgroundColor3 = Color3.fromRGB(14,14,22)
+    else
+        bypassStripTxt.Text = "Bypass active: " .. table.concat(active, " | ")
+        bypassStripTxt.TextColor3 = Color3.fromRGB(80,220,100)
+        bypassStrip.BackgroundColor3 = Color3.fromRGB(14,22,14)
+    end
+end
+
+-- ============================================================
+-- PANEL 2 - SPY LOGGER
+-- ============================================================
+
+local spyTopBar = Instance.new("Frame")
+spyTopBar.Size = UDim2.new(1,-20,0,36)
+spyTopBar.Position = UDim2.new(0,10,0,5)
+spyTopBar.BackgroundTransparency = 1
+spyTopBar.Parent = panel2
+
+local spyToggleBtn = makeBtn(spyTopBar, "START SPY", 0,   0, 120, 32, Color3.fromRGB(16,32,16), Color3.fromRGB(80,220,100), Color3.fromRGB(60,200,80))
+local clearLogBtn  = makeBtn(spyTopBar, "CLEAR",    128, 0, 80,  32, Color3.fromRGB(28,16,16), Color3.fromRGB(220,80,80),  Color3.fromRGB(180,50,50))
+
+local logCountLabel = Instance.new("TextLabel")
+logCountLabel.Size = UDim2.new(0,200,0,32)
+logCountLabel.Position = UDim2.new(0,216,0,0)
+logCountLabel.BackgroundTransparency = 1
+logCountLabel.Text = "0 calls logged"
+logCountLabel.TextColor3 = Color3.fromRGB(70,70,110)
+logCountLabel.TextSize = 11
+logCountLabel.Font = Enum.Font.GothamBold
+logCountLabel.TextXAlignment = Enum.TextXAlignment.Left
+logCountLabel.Parent = spyTopBar
+
+local logScroll = Instance.new("ScrollingFrame")
+logScroll.Size = UDim2.new(1,-20,1,-52)
+logScroll.Position = UDim2.new(0,10,0,46)
+logScroll.BackgroundColor3 = Color3.fromRGB(12,12,18)
+logScroll.BorderSizePixel = 0
+logScroll.ScrollBarThickness = 3
+logScroll.ScrollBarImageColor3 = Color3.fromRGB(140,0,255)
+logScroll.CanvasSize = UDim2.new(0,0,0,0)
+local spyTipsBox = Instance.new("Frame")
+spyTipsBox.Size = UDim2.new(1, -20, 0, 50)
+spyTipsBox.Position = UDim2.new(0, 10, 1, -58)
+spyTipsBox.BackgroundColor3 = Color3.fromRGB(14, 12, 22)
+spyTipsBox.BorderSizePixel = 0
+spyTipsBox.Parent = panel2
+Instance.new("UICorner", spyTipsBox).CornerRadius = UDim.new(0, 6)
+makeStroke(spyTipsBox, Color3.fromRGB(80,40,140), 1, 0.4)
+
+local spyTipsHeader = Instance.new("TextLabel")
+spyTipsHeader.Size = UDim2.new(1, -10, 0, 14)
+spyTipsHeader.Position = UDim2.new(0, 8, 0, 4)
+spyTipsHeader.BackgroundTransparency = 1
+spyTipsHeader.Text = "SPY TIPS"
+spyTipsHeader.TextColor3 = Color3.fromRGB(140, 60, 220)
+spyTipsHeader.TextSize = 9
+spyTipsHeader.Font = Enum.Font.GothamBold
+spyTipsHeader.TextXAlignment = Enum.TextXAlignment.Left
+spyTipsHeader.Parent = spyTipsBox
+
+local spyTipsTxt = Instance.new("TextLabel")
+spyTipsTxt.Size = UDim2.new(1, -16, 1, -20)
+spyTipsTxt.Position = UDim2.new(0, 8, 0, 18)
+spyTipsTxt.BackgroundTransparency = 1
+spyTipsTxt.Text = "Press START SPY then play the game normally. Every remote the game fires will be logged here with its arguments."
+spyTipsTxt.TextColor3 = Color3.fromRGB(120, 100, 160)
+spyTipsTxt.TextSize = 10
+spyTipsTxt.Font = Enum.Font.Gotham
+spyTipsTxt.TextWrapped = true
+spyTipsTxt.TextXAlignment = Enum.TextXAlignment.Left
+spyTipsTxt.TextYAlignment = Enum.TextYAlignment.Top
+spyTipsTxt.Parent = spyTipsBox
+
+-- also shrink logScroll to make room
+logScroll.Size = UDim2.new(1,-20,1,-110)
+logScroll.Parent = panel2
+Instance.new("UICorner", logScroll).CornerRadius = UDim.new(0, 6)
+makeStroke(logScroll, Color3.fromRGB(35,35,55))
+local ll = Instance.new("UIListLayout") ll.Padding = UDim.new(0,3) ll.Parent = logScroll
+local lp = Instance.new("UIPadding") lp.PaddingTop = UDim.new(0,6) lp.PaddingLeft = UDim.new(0,6) lp.PaddingRight = UDim.new(0,6) lp.Parent = logScroll
+
+-- ============================================================
+-- PANEL 3 - CODE OUTPUT
+-- ============================================================
+
+local codeTopBar = Instance.new("Frame")
+codeTopBar.Size = UDim2.new(1,-20,0,36)
+codeTopBar.Position = UDim2.new(0,10,0,5)
+codeTopBar.BackgroundTransparency = 1
+codeTopBar.Parent = panel3
+
+local copySingleCode = makeBtn(codeTopBar, "COPY FIRE CODE", 0,   0, 160, 32, Color3.fromRGB(16,28,16), Color3.fromRGB(80,220,100),  Color3.fromRGB(60,180,60))
+local copyLoopCode   = makeBtn(codeTopBar, "COPY LOOP CODE", 168, 0, 160, 32, Color3.fromRGB(16,16,32), Color3.fromRGB(100,160,255),  Color3.fromRGB(80,120,220))
+local copyHookCode   = makeBtn(codeTopBar, "COPY HOOK CODE", 336, 0, 160, 32, Color3.fromRGB(28,16,8),  Color3.fromRGB(255,160,60),   Color3.fromRGB(220,120,20))
+
+local codeDisplay = Instance.new("TextBox")
+codeDisplay.Size = UDim2.new(1,-20,1,-52)
+codeDisplay.Position = UDim2.new(0,10,0,46)
+codeDisplay.BackgroundColor3 = Color3.fromRGB(12,12,18)
+codeDisplay.BorderSizePixel = 0
+codeDisplay.Text = "-- Select a remote in the Fire tab first"
+codeDisplay.TextColor3 = Color3.fromRGB(160,220,160)
+codeDisplay.TextSize = 12
+codeDisplay.Font = Enum.Font.Code
+codeDisplay.TextXAlignment = Enum.TextXAlignment.Left
+codeDisplay.TextYAlignment = Enum.TextYAlignment.Top
+codeDisplay.MultiLine = true
+codeDisplay.ClearTextOnFocus = false
+codeDisplay.TextEditable = false
+codeDisplay.TextWrapped = true
+codeDisplay.Parent = panel3
+Instance.new("UICorner", codeDisplay).CornerRadius = UDim.new(0, 6)
+makeStroke(codeDisplay, Color3.fromRGB(35,35,55))
+local cdp = Instance.new("UIPadding") cdp.PaddingLeft = UDim.new(0,10) cdp.PaddingTop = UDim.new(0,8) cdp.Parent = codeDisplay
+
+-- ============================================================
+-- PANEL 4 - BYPASS
+-- ============================================================
+
+local bypassDesc = Instance.new("TextLabel")
+bypassDesc.Size = UDim2.new(1, -20, 0, 30)
+bypassDesc.Position = UDim2.new(0, 10, 0, 6)
+bypassDesc.BackgroundTransparency = 1
+bypassDesc.Text = "These options try to bypass server-side remote blocks. Use the Spy Logger to capture exact args the game sends naturally -- that is the most reliable bypass."
+bypassDesc.TextColor3 = Color3.fromRGB(80,80,120)
+bypassDesc.TextSize = 10
+bypassDesc.Font = Enum.Font.Gotham
+bypassDesc.TextWrapped = true
+bypassDesc.TextXAlignment = Enum.TextXAlignment.Left
+bypassDesc.Parent = panel4
+
+local function makeBypassToggle(parent, title, desc, yPos, onToggle)
+    local row = Instance.new("Frame")
+    row.Size = UDim2.new(1, -20, 0, 60)
+    row.Position = UDim2.new(0, 10, 0, yPos)
+    row.BackgroundColor3 = Color3.fromRGB(16, 16, 26)
+    row.BorderSizePixel = 0
+    row.Parent = parent
+    Instance.new("UICorner", row).CornerRadius = UDim.new(0, 8)
+    local rowStroke = makeStroke(row, Color3.fromRGB(40,40,65), 1, 0.5)
+
+    local titleLbl = Instance.new("TextLabel")
+    titleLbl.Size = UDim2.new(1, -80, 0, 20)
+    titleLbl.Position = UDim2.new(0, 12, 0, 8)
+    titleLbl.BackgroundTransparency = 1
+    titleLbl.Text = title
+    titleLbl.TextColor3 = Color3.fromRGB(200, 200, 220)
+    titleLbl.TextSize = 12
+    titleLbl.Font = Enum.Font.GothamBold
+    titleLbl.TextXAlignment = Enum.TextXAlignment.Left
+    titleLbl.Parent = row
+
+    local descLbl = Instance.new("TextLabel")
+    descLbl.Size = UDim2.new(1, -80, 0, 28)
+    descLbl.Position = UDim2.new(0, 12, 0, 28)
+    descLbl.BackgroundTransparency = 1
+    descLbl.Text = desc
+    descLbl.TextColor3 = Color3.fromRGB(70,70,110)
+    descLbl.TextSize = 10
+    descLbl.Font = Enum.Font.Gotham
+    descLbl.TextWrapped = true
+    descLbl.TextXAlignment = Enum.TextXAlignment.Left
+    descLbl.Parent = row
+
+    local enabled = false
+    local pill = Instance.new("TextButton")
+    pill.Size = UDim2.new(0, 52, 0, 26)
+    pill.Position = UDim2.new(1, -62, 0.5, -13)
+    pill.BackgroundColor3 = Color3.fromRGB(30,30,50)
+    pill.BorderSizePixel = 0
+    pill.Text = "OFF"
+    pill.TextColor3 = Color3.fromRGB(80,80,120)
+    pill.TextSize = 10
+    pill.Font = Enum.Font.GothamBold
+    pill.AutoButtonColor = false
+    pill.Parent = row
+    Instance.new("UICorner", pill).CornerRadius = UDim.new(1, 0)
+    local pillStroke = makeStroke(pill, Color3.fromRGB(50,50,80), 1, 0.4)
+
+    pill.MouseButton1Click:Connect(function()
+        enabled = not enabled
+        if enabled then
+            pill.BackgroundColor3 = Color3.fromRGB(30,60,30)
+            pill.Text = "ON"
+            pill.TextColor3 = Color3.fromRGB(80,220,100)
+            pillStroke.Color = Color3.fromRGB(60,200,80)
+            rowStroke.Color = Color3.fromRGB(60,200,80)
+            rowStroke.Transparency = 0.3
+        else
+            pill.BackgroundColor3 = Color3.fromRGB(30,30,50)
+            pill.Text = "OFF"
+            pill.TextColor3 = Color3.fromRGB(80,80,120)
+            pillStroke.Color = Color3.fromRGB(50,50,80)
+            rowStroke.Color = Color3.fromRGB(40,40,65)
+            rowStroke.Transparency = 0.5
+        end
+        onToggle(enabled)
+        updateBypassStrip()
+    end)
+end
+
+makeBypassToggle(panel4, "Inject Player as Arg1",
+    "Prepends LocalPlayer as first argument. Some servers expect the player object before your actual args.",
+    44, function(v) bypassPlayerArg = v end)
+
+makeBypassToggle(panel4, "Slow Fire Rate",
+    "Adds a 0.5s wait between each fire. Helps bypass rate-limit checks that drop rapid fires.",
+    114, function(v) bypassSlowFire = v end)
+
+makeBypassToggle(panel4, "Use InvokeServer instead of FireServer",
+    "Forces InvokeServer on RemoteEvents. Some games have loose checks on invoke vs fire.",
+    184, function(v) bypassInvoke = v end)
+
+local spyTip = Instance.new("Frame")
+spyTip.Size = UDim2.new(1, -20, 0, 60)
+spyTip.Position = UDim2.new(0, 10, 0, 260)
+spyTip.BackgroundColor3 = Color3.fromRGB(14, 22, 14)
+spyTip.BorderSizePixel = 0
+spyTip.Parent = panel4
+Instance.new("UICorner", spyTip).CornerRadius = UDim.new(0, 8)
+makeStroke(spyTip, Color3.fromRGB(60,180,60), 1, 0.4)
+local spyTipTxt = Instance.new("TextLabel")
+spyTipTxt.Size = UDim2.new(1, -20, 1, -10)
+spyTipTxt.Position = UDim2.new(0, 10, 0, 5)
+spyTipTxt.BackgroundTransparency = 1
+spyTipTxt.Text = "Best bypass: Use Spy Logger to watch what the game sends when you do the action yourself. Paste those exact args into the Fire tab -- server will accept them since they match what it expects."
+spyTipTxt.TextColor3 = Color3.fromRGB(80,180,80)
+spyTipTxt.TextSize = 10
+spyTipTxt.Font = Enum.Font.Gotham
+spyTipTxt.TextWrapped = true
+spyTipTxt.TextXAlignment = Enum.TextXAlignment.Left
+spyTipTxt.Parent = spyTip
+
+-- ============================================================
+-- PANEL 5 - DECRYPTER
+-- ============================================================
+
+local decryptDesc = Instance.new("TextLabel")
+decryptDesc.Size = UDim2.new(1, -20, 0, 14)
+decryptDesc.Position = UDim2.new(0, 10, 0, 6)
+decryptDesc.BackgroundTransparency = 1
+decryptDesc.Text = "Detects and decodes common obfuscation: Base64, Hex, XOR, ROT13, Reverse, multi-layer combos"
+decryptDesc.TextColor3 = Color3.fromRGB(70,70,110)
+decryptDesc.TextSize = 9
+decryptDesc.Font = Enum.Font.Gotham
+decryptDesc.TextXAlignment = Enum.TextXAlignment.Left
+decryptDesc.Parent = panel5
+
+local decryptInputLabel = Instance.new("TextLabel")
+decryptInputLabel.Size = UDim2.new(0.5, -14, 0, 13)
+decryptInputLabel.Position = UDim2.new(0, 10, 0, 22)
+decryptInputLabel.BackgroundTransparency = 1
+decryptInputLabel.Text = "INPUT  (paste obfuscated string)"
+decryptInputLabel.TextColor3 = Color3.fromRGB(70,70,110)
+decryptInputLabel.TextSize = 9
+decryptInputLabel.Font = Enum.Font.GothamBold
+decryptInputLabel.TextXAlignment = Enum.TextXAlignment.Left
+decryptInputLabel.Parent = panel5
+
+local decryptInput = Instance.new("TextBox")
+decryptInput.Size = UDim2.new(0.5, -14, 1, -120)
+decryptInput.Position = UDim2.new(0, 10, 0, 36)
+decryptInput.BackgroundColor3 = Color3.fromRGB(12,12,18)
+decryptInput.BorderSizePixel = 0
+decryptInput.PlaceholderText = "Paste obfuscated / encoded string here..."
+decryptInput.PlaceholderColor3 = Color3.fromRGB(50,50,80)
+decryptInput.Text = ""
+decryptInput.TextColor3 = Color3.fromRGB(200,220,160)
+decryptInput.TextSize = 11
+decryptInput.Font = Enum.Font.Code
+decryptInput.TextXAlignment = Enum.TextXAlignment.Left
+decryptInput.TextYAlignment = Enum.TextYAlignment.Top
+decryptInput.MultiLine = true
+decryptInput.ClearTextOnFocus = false
+decryptInput.TextWrapped = true
+decryptInput.Parent = panel5
+Instance.new("UICorner", decryptInput).CornerRadius = UDim.new(0, 6)
+makeStroke(decryptInput, Color3.fromRGB(35,35,55))
+local dip = Instance.new("UIPadding") dip.PaddingLeft = UDim.new(0,8) dip.PaddingTop = UDim.new(0,6) dip.Parent = decryptInput
+
+local decryptOutputLabel = Instance.new("TextLabel")
+decryptOutputLabel.Size = UDim2.new(0.5, -14, 0, 13)
+decryptOutputLabel.Position = UDim2.new(0.5, 4, 0, 22)
+decryptOutputLabel.BackgroundTransparency = 1
+decryptOutputLabel.Text = "OUTPUT"
+decryptOutputLabel.TextColor3 = Color3.fromRGB(70,70,110)
+decryptOutputLabel.TextSize = 9
+decryptOutputLabel.Font = Enum.Font.GothamBold
+decryptOutputLabel.TextXAlignment = Enum.TextXAlignment.Left
+decryptOutputLabel.Parent = panel5
+
+local decryptOutput = Instance.new("TextBox")
+decryptOutput.Size = UDim2.new(0.5, -14, 1, -120)
+decryptOutput.Position = UDim2.new(0.5, 4, 0, 36)
+decryptOutput.BackgroundColor3 = Color3.fromRGB(12,12,18)
+decryptOutput.BorderSizePixel = 0
+decryptOutput.PlaceholderText = "Decoded output appears here..."
+decryptOutput.PlaceholderColor3 = Color3.fromRGB(50,50,80)
+decryptOutput.Text = ""
+decryptOutput.TextEditable = false
+decryptOutput.TextColor3 = Color3.fromRGB(160,220,200)
+decryptOutput.TextSize = 11
+decryptOutput.Font = Enum.Font.Code
+decryptOutput.TextXAlignment = Enum.TextXAlignment.Left
+decryptOutput.TextYAlignment = Enum.TextYAlignment.Top
+decryptOutput.MultiLine = true
+decryptOutput.ClearTextOnFocus = false
+decryptOutput.TextWrapped = true
+decryptOutput.Parent = panel5
+Instance.new("UICorner", decryptOutput).CornerRadius = UDim.new(0, 6)
+makeStroke(decryptOutput, Color3.fromRGB(35,55,35))
+local dop = Instance.new("UIPadding") dop.PaddingLeft = UDim.new(0,8) dop.PaddingTop = UDim.new(0,6) dop.Parent = decryptOutput
+
+local decryptStatus = Instance.new("TextLabel")
+decryptStatus.Size = UDim2.new(1, -20, 0, 18)
+decryptStatus.Position = UDim2.new(0, 10, 1, -96)
+decryptStatus.BackgroundColor3 = Color3.fromRGB(14,14,22)
+decryptStatus.BorderSizePixel = 0
+decryptStatus.Text = "Detected encoding: none"
+decryptStatus.TextColor3 = Color3.fromRGB(70,70,110)
+decryptStatus.TextSize = 10
+decryptStatus.Font = Enum.Font.GothamBold
+decryptStatus.TextXAlignment = Enum.TextXAlignment.Left
+decryptStatus.Parent = panel5
+Instance.new("UICorner", decryptStatus).CornerRadius = UDim.new(0, 4)
+local dsp = Instance.new("UIPadding") dsp.PaddingLeft = UDim.new(0,8) dsp.Parent = decryptStatus
+
+local decryptBtnBar = Instance.new("Frame")
+decryptBtnBar.Size = UDim2.new(1, -20, 0, 32)
+decryptBtnBar.Position = UDim2.new(0, 10, 1, -72)
+decryptBtnBar.BackgroundTransparency = 1
+decryptBtnBar.Parent = panel5
+local dbLayout = Instance.new("UIListLayout")
+dbLayout.FillDirection = Enum.FillDirection.Horizontal
+dbLayout.Padding = UDim.new(0, 5)
+dbLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+dbLayout.Parent = decryptBtnBar
+
+local autoDecryptBtn = makeBtn(decryptBtnBar, "AUTO DETECT", 0, 0, 110, 30, Color3.fromRGB(20,10,40),  Color3.fromRGB(180,80,255),  Color3.fromRGB(140,0,255))
+local b64Btn         = makeBtn(decryptBtnBar, "Base64",      0, 0, 76,  30, Color3.fromRGB(16,16,30),  Color3.fromRGB(100,160,255), Color3.fromRGB(60,100,200))
+local hexBtn         = makeBtn(decryptBtnBar, "Hex",         0, 0, 56,  30, Color3.fromRGB(16,16,30),  Color3.fromRGB(255,180,80),  Color3.fromRGB(180,120,20))
+local rot13Btn       = makeBtn(decryptBtnBar, "ROT13",       0, 0, 66,  30, Color3.fromRGB(16,16,30),  Color3.fromRGB(80,220,180),  Color3.fromRGB(40,160,120))
+local reverseBtn     = makeBtn(decryptBtnBar, "Reverse",     0, 0, 76,  30, Color3.fromRGB(16,16,30),  Color3.fromRGB(220,100,80),  Color3.fromRGB(180,60,40))
+local xorBtn         = makeBtn(decryptBtnBar, "XOR 0x58",    0, 0, 80,  30, Color3.fromRGB(16,16,30),  Color3.fromRGB(160,220,80),  Color3.fromRGB(100,160,40))
+local copyDecryptBtn = makeBtn(decryptBtnBar, "Copy Output", 0, 0, 90,  30, Color3.fromRGB(16,28,28),  Color3.fromRGB(60,220,200),  Color3.fromRGB(40,180,160))
+
+local decryptHint = Instance.new("TextLabel")
+decryptHint.Size = UDim2.new(1, -20, 0, 14)
+decryptHint.Position = UDim2.new(0, 10, 1, -34)
+decryptHint.BackgroundTransparency = 1
+decryptHint.Text = "Tip: Auto Detect tries all methods and picks the most readable result. For multi-layer obfuscation run Auto Detect multiple times on the output."
+decryptHint.TextColor3 = Color3.fromRGB(50,50,80)
+decryptHint.TextSize = 9
+decryptHint.Font = Enum.Font.Gotham
+decryptHint.TextWrapped = true
+decryptHint.TextXAlignment = Enum.TextXAlignment.Left
+decryptHint.Parent = panel5
+
+-- ============================================================
+-- CORE LOGIC
+-- ============================================================
+
+local function parseArgs(text)
+    if text == "" then return {} end
+    local args = {}
+    for part in text:gmatch("[^,]+") do
+        local trimmed = part:match("^%s*(.-)%s*$")
+        if trimmed == "true" then table.insert(args, true)
+        elseif trimmed == "false" then table.insert(args, false)
+        elseif tonumber(trimmed) then table.insert(args, tonumber(trimmed))
+        else
+            local stripped = trimmed:match('^"(.*)"$') or trimmed:match("^'(.*)'$") or trimmed
+            table.insert(args, stripped)
+        end
+    end
+    return args
+end
+
+local function argToString(arg)
+    local t = type(arg)
+    if t == "string"   then return '"' .. arg .. '"'
+    elseif t == "boolean"  then return tostring(arg)
+    elseif t == "number"   then return tostring(arg)
+    elseif t == "userdata" then
+        local ok3, name = pcall(function() return arg.Name end)
+        return ok3 and ("Instance("..name..")") or "userdata"
+    elseif t == "table" then return "{table}"
+    else return tostring(arg) end
+end
+
+local function typeColor(arg)
+    local t = type(arg)
+    if t == "string"   then return Color3.fromRGB(255,180,80) end
+    if t == "number"   then return Color3.fromRGB(120,200,255) end
+    if t == "boolean"  then return Color3.fromRGB(180,120,255) end
+    if t == "userdata" then return Color3.fromRGB(80,220,180) end
+    return Color3.fromRGB(180,180,200)
+end
+
+local function fireRemote(remote, targetPlayer, args)
+    if not remote then return false end
+    local finalArgs = {}
+    if bypassPlayerArg then table.insert(finalArgs, player) end
+    if targetPlayer and targetPlayer ~= player then table.insert(finalArgs, targetPlayer) end
+    for _, a in ipairs(args) do table.insert(finalArgs, a) end
+    local ok3, err = pcall(function()
+        if bypassInvoke then
+            remote:InvokeServer(table.unpack(finalArgs))
+        elseif remote:IsA("RemoteEvent") then
+            remote:FireServer(table.unpack(finalArgs))
+        elseif remote:IsA("RemoteFunction") then
+            remote:InvokeServer(table.unpack(finalArgs))
+        end
+    end)
+    if bypassSlowFire then task.wait(0.5) end
+    return ok3, err
+end
+
+local function buildFireCode(remote, args)
+    if not remote then return "-- No remote selected" end
+    local path = remote:GetFullName()
+    local method = (bypassInvoke or remote:IsA("RemoteFunction")) and "InvokeServer" or "FireServer"
+    local argStr = bypassPlayerArg and "game.Players.LocalPlayer" or ""
+    for i, a in ipairs(args) do
+        if argStr ~= "" then argStr = argStr .. ", " end
+        argStr = argStr .. argToString(a)
+    end
+    return string.format('-- Fire once\n-- Path: %s\nlocal remote = game:GetService("ReplicatedStorage"):WaitForChild("%s")\nremote:%s(%s)', path, remote.Name, method, argStr)
+end
+
+local function buildLoopCode(remote, args)
+    if not remote then return "-- No remote selected" end
+    local path = remote:GetFullName()
+    local method = (bypassInvoke or remote:IsA("RemoteFunction")) and "InvokeServer" or "FireServer"
+    local argStr = bypassPlayerArg and "game.Players.LocalPlayer" or ""
+    for i, a in ipairs(args) do
+        if argStr ~= "" then argStr = argStr .. ", " end
+        argStr = argStr .. argToString(a)
+    end
+    local wait = bypassSlowFire and "0.5" or "0.1"
+    return string.format('-- Loop fire\n-- Path: %s\nlocal remote = game:GetService("ReplicatedStorage"):WaitForChild("%s")\nwhile true do\n    remote:%s(%s)\n    task.wait(%s)\nend', path, remote.Name, method, argStr, wait)
+end
+
+local function buildHookCode(remote)
+    if not remote then return "-- No remote selected" end
+    return string.format(
+'-- Hook & log: %s\nlocal oldNamecall\noldNamecall = hookmetamethod(game, "__namecall", function(self, ...)\n    local method = getnamecallmethod()\n    if self.Name == "%s" and (method == "FireServer" or method == "InvokeServer") then\n        local args = {...}\n        print("[RSpy] %s fired")\n        for i, arg in ipairs(args) do\n            print("  Arg "..i..": ["..type(arg).."] = "..tostring(arg))\n        end\n    end\n    return oldNamecall(self, ...)\nend)',
+    remote.Name, remote.Name, remote.Name)
+end
+
+local function updateCodePanel()
+    if not selectedRemote then return end
+    codeDisplay.Text = buildFireCode(selectedRemote, parseArgs(argBox.Text))
+end
+
+local logCount = 0
+
+local function addLogEntry(remoteName, remoteType, method, args)
+    logCount += 1
+    logCountLabel.Text = logCount .. " calls logged"
+
+    local entry = Instance.new("Frame")
+    entry.Size = UDim2.new(1, 0, 0, 0)
+    entry.BackgroundColor3 = Color3.fromRGB(16,16,26)
+    entry.BorderSizePixel = 0
+    entry.AutomaticSize = Enum.AutomaticSize.Y
+    entry.Parent = logScroll
+    Instance.new("UICorner", entry).CornerRadius = UDim.new(0, 5)
+    makeStroke(entry, Color3.fromRGB(40,40,65), 1, 0.5)
+
+    local entryPad = Instance.new("UIPadding")
+    entryPad.PaddingLeft = UDim.new(0,8)
+    entryPad.PaddingTop = UDim.new(0,5)
+    entryPad.PaddingBottom = UDim.new(0,5)
+    entryPad.Parent = entry
+
+    local entryLayout = Instance.new("UIListLayout")
+    entryLayout.Padding = UDim.new(0,2)
+    entryLayout.Parent = entry
+
+    local header = Instance.new("TextLabel")
+    header.Size = UDim2.new(1,-16,0,16)
+    header.BackgroundTransparency = 1
+    header.RichText = true
+    header.Text = string.format('<font color="#a050ff"><b>%s</b></font>  <font color="#606090">%s - %s</font>  <font color="#404060">#%d</font>', remoteName, remoteType, method, logCount)
+    header.TextSize = 11
+    header.Font = Enum.Font.GothamBold
+    header.TextXAlignment = Enum.TextXAlignment.Left
+    header.Parent = entry
+
+    local fireFromLog = Instance.new("TextButton")
+    fireFromLog.Size = UDim2.new(0, 70, 0, 14)
+    fireFromLog.Position = UDim2.new(1, -80, 0, 1)
+    fireFromLog.BackgroundColor3 = Color3.fromRGB(20,35,20)
+    fireFromLog.BorderSizePixel = 0
+    fireFromLog.Text = "Re-Fire"
+    fireFromLog.TextColor3 = Color3.fromRGB(80,220,100)
+    fireFromLog.TextSize = 9
+    fireFromLog.Font = Enum.Font.GothamBold
+    fireFromLog.AutoButtonColor = false
+    fireFromLog.Parent = entry
+    Instance.new("UICorner", fireFromLog).CornerRadius = UDim.new(0, 3)
+    fireFromLog.MouseButton1Click:Connect(function()
+        for _, remote in ipairs(remoteList) do
+            if remote.Name == remoteName then
+                fireRemote(remote, nil, args)
+                setStatus("Re-fired from log: " .. remoteName, Color3.fromRGB(80,220,100))
+                break
+            end
+        end
+    end)
+
+    if #args == 0 then
+        local noArgs = Instance.new("TextLabel")
+        noArgs.Size = UDim2.new(1,-16,0,14)
+        noArgs.BackgroundTransparency = 1
+        noArgs.Text = "  no arguments"
+        noArgs.TextColor3 = Color3.fromRGB(60,60,90)
+        noArgs.TextSize = 10
+        noArgs.Font = Enum.Font.Gotham
+        noArgs.TextXAlignment = Enum.TextXAlignment.Left
+        noArgs.Parent = entry
+    else
+        for i, arg in ipairs(args) do
+            local argLabel = Instance.new("TextLabel")
+            argLabel.Size = UDim2.new(1,-16,0,14)
+            argLabel.BackgroundTransparency = 1
+            argLabel.RichText = true
+            argLabel.Text = string.format('  <font color="#606090">arg%d</font>  <font color="#8080b0">[%s]</font>  %s', i, type(arg), argToString(arg))
+            argLabel.TextColor3 = typeColor(arg)
+            argLabel.TextSize = 10
+            argLabel.Font = Enum.Font.Code
+            argLabel.TextXAlignment = Enum.TextXAlignment.Left
+            argLabel.Parent = entry
+        end
+    end
+
+    local totalHeight = ll.AbsoluteContentSize.Y + 12
+    logScroll.CanvasSize = UDim2.new(0,0,0,totalHeight)
+    logScroll.CanvasPosition = Vector2.new(0, totalHeight)
+    table.insert(logEntries, entry)
+    if #logEntries > 200 then
+        logEntries[1]:Destroy()
+        table.remove(logEntries, 1)
+    end
+end
+
+local function startSpy()
+    if not hookmetamethod then
+        setStatus("hookmetamethod not available", Color3.fromRGB(255,80,80))
+        return
+    end
+    spyEnabled = true
+    spyToggleBtn.Text = "STOP SPY"
+    spyToggleBtn.TextColor3 = Color3.fromRGB(255,100,100)
+    hookRef = hookmetamethod(game, "__namecall", function(self, ...)
+        local method = getnamecallmethod()
+        if spyEnabled and (method == "FireServer" or method == "InvokeServer" or method == "FireAllClients") then
+            if self:IsA("RemoteEvent") or self:IsA("RemoteFunction") then
+                local args = {...}
+                local remoteType = self:IsA("RemoteFunction") and "RemoteFunction" or "RemoteEvent"
+                task.defer(function()
+                    addLogEntry(self.Name, remoteType, method, args)
+                end)
+            end
+        end
+        return hookRef(self, ...)
+    end)
+end
+
+local function stopSpy()
+    spyEnabled = false
+    spyToggleBtn.Text = "START SPY"
+    spyToggleBtn.TextColor3 = Color3.fromRGB(80,220,100)
+end
+
+spyToggleBtn.MouseButton1Click:Connect(function()
+    if spyEnabled then stopSpy() else startSpy() end
+end)
+
+clearLogBtn.MouseButton1Click:Connect(function()
+    for _, e in ipairs(logEntries) do e:Destroy() end
+    logEntries = {}
+    logCount = 0
+    logCountLabel.Text = "0 calls logged"
+    logScroll.CanvasSize = UDim2.new(0,0,0,0)
+end)
+
+local function makeRemoteRow(remote)
+    local isFunc = remote:IsA("RemoteFunction")
+    local row = Instance.new("TextButton")
+    row.Size = UDim2.new(1,0,0,34)
+    row.BackgroundColor3 = Color3.fromRGB(18,18,28)
+    row.BorderSizePixel = 0
+    row.Text = ""
+    row.AutoButtonColor = false
+    row.Parent = remoteScroll
+    Instance.new("UICorner", row).CornerRadius = UDim.new(0, 5)
+    local rowStroke = makeStroke(row, Color3.fromRGB(45,45,70), 1, 0.5)
+
+    local badge = Instance.new("Frame")
+    badge.Size = UDim2.new(0,24,0,14)
+    badge.Position = UDim2.new(0,6,0.5,-7)
+    badge.BackgroundColor3 = isFunc and Color3.fromRGB(40,30,10) or Color3.fromRGB(10,25,40)
+    badge.BorderSizePixel = 0
+    badge.Parent = row
+    Instance.new("UICorner", badge).CornerRadius = UDim.new(0, 3)
+    local badgeTxt = Instance.new("TextLabel")
+    badgeTxt.Size = UDim2.new(1,0,1,0)
+    badgeTxt.BackgroundTransparency = 1
+    badgeTxt.Text = isFunc and "RF" or "RE"
+    badgeTxt.TextColor3 = isFunc and Color3.fromRGB(255,180,40) or Color3.fromRGB(80,180,255)
+    badgeTxt.TextSize = 8
+    badgeTxt.Font = Enum.Font.GothamBold
+    badgeTxt.Parent = badge
+
+    local nameTxt = Instance.new("TextLabel")
+    nameTxt.Size = UDim2.new(1,-40,1,0)
+    nameTxt.Position = UDim2.new(0,36,0,0)
+    nameTxt.BackgroundTransparency = 1
+    nameTxt.Text = remote.Name
+    nameTxt.TextColor3 = Color3.fromRGB(190,190,215)
+    nameTxt.TextSize = 11
+    nameTxt.Font = Enum.Font.GothamBold
+    nameTxt.TextXAlignment = Enum.TextXAlignment.Left
+    nameTxt.TextTruncate = Enum.TextTruncate.AtEnd
+    nameTxt.Parent = row
+
+    row.MouseButton1Click:Connect(function()
+        for _, item in ipairs(rowItems) do
+            item.row.BackgroundColor3 = Color3.fromRGB(18,18,28)
+            item.nameTxt.TextColor3 = Color3.fromRGB(190,190,215)
+            item.stroke.Color = Color3.fromRGB(45,45,70)
+        end
+        selectedRemote = remote
+        row.BackgroundColor3 = Color3.fromRGB(28,10,48)
+        nameTxt.TextColor3 = Color3.fromRGB(210,120,255)
+        rowStroke.Color = Color3.fromRGB(160,0,255)
+        remoteDisplay.Text = remote.Name .. "  (" .. remote:GetFullName() .. ")"
+        setStatus("Selected: " .. remote.Name, Color3.fromRGB(160,80,255))
+        updateCodePanel()
+    end)
+
+    return {row = row, nameTxt = nameTxt, stroke = rowStroke}
+end
+
+local function clearRemoteRows()
+    for _, item in ipairs(rowItems) do item.row:Destroy() end
+    rowItems = {}
+    remoteList = {}
+    selectedRemote = nil
+    remoteDisplay.Text = ""
+end
+
+local function scanRemotes()
+    clearRemoteRows()
+    rescanBtn.Text = "Scanning..."
+    task.defer(function()
+        local found = {}
+        for _, obj in ipairs(game:GetDescendants()) do
+            if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+                table.insert(found, obj)
+            end
+        end
+        remoteList = found
+        for _, remote in ipairs(found) do
+            local item = makeRemoteRow(remote)
+            table.insert(rowItems, item)
+        end
+        remoteScroll.CanvasSize = UDim2.new(0,0,0,#found * 37 + 10)
+        setStatus("Found " .. #found .. " remotes", Color3.fromRGB(80,220,100))
+        rescanBtn.Text = "RE-SCAN REMOTES"
+    end)
+end
+
+local function filterRemotes(query)
+    query = query:lower()
+    local visible = 0
+    for _, item in ipairs(rowItems) do
+        local match = query == "" or item.nameTxt.Text:lower():find(query, 1, true)
+        item.row.Visible = match ~= nil and match ~= false
+        if item.row.Visible then visible += 1 end
+    end
+    remoteScroll.CanvasSize = UDim2.new(0,0,0,visible * 37 + 10)
+end
+
+fireSingleBtn.MouseButton1Click:Connect(function()
+    if not selectedRemote then setStatus("No remote selected!", Color3.fromRGB(255,80,80)) return end
+    local ok3, err = fireRemote(selectedRemote, selectedPlayer, parseArgs(argBox.Text))
+    setStatus(ok3 and ("Fired: "..selectedRemote.Name) or ("Error: "..tostring(err)), ok3 and Color3.fromRGB(80,220,100) or Color3.fromRGB(255,80,80))
+end)
+
+fireAllBtn.MouseButton1Click:Connect(function()
+    if not selectedRemote then setStatus("No remote selected!", Color3.fromRGB(255,80,80)) return end
+    local args = parseArgs(argBox.Text)
+    local fired = 0
+    for _, p in ipairs(Players:GetPlayers()) do
+        local ok3 = fireRemote(selectedRemote, p, args)
+        if ok3 then fired += 1 end
+        task.wait()
+    end
+    setStatus("Fired to " .. fired .. " players", Color3.fromRGB(100,160,255))
+end)
+
+nukeBtn.MouseButton1Click:Connect(function()
+    if not selectedRemote then setStatus("No remote selected!", Color3.fromRGB(255,80,80)) return end
+    local args = parseArgs(argBox.Text)
+    local fired = 0
+    for i = 1, 100 do
+        local ok3 = fireRemote(selectedRemote, selectedPlayer, args)
+        if ok3 then fired += 1 end
+        task.wait()
+    end
+    setStatus("Nuked 100x -- " .. fired .. " hits", Color3.fromRGB(255,140,40))
+end)
+
+loopBtn.MouseButton1Click:Connect(function()
+    loopEnabled = not loopEnabled
+    if loopEnabled then
+        loopBtn.Text = "LOOP: ON"
+        loopBtn.TextColor3 = Color3.fromRGB(100,255,140)
+        loopStroke.Color = Color3.fromRGB(60,200,100)
+        loopThread = task.spawn(function()
+            while loopEnabled do
+                if selectedRemote then
+                    fireRemote(selectedRemote, selectedPlayer, parseArgs(argBox.Text))
+                    setStatus("Looping: " .. selectedRemote.Name, Color3.fromRGB(100,255,140))
+                end
+                task.wait(bypassSlowFire and 0.5 or 0.1)
+            end
+        end)
+    else
+        loopEnabled = false
+        loopBtn.Text = "LOOP: OFF"
+        loopBtn.TextColor3 = Color3.fromRGB(120,120,170)
+        loopStroke.Color = Color3.fromRGB(70,70,120)
+        setStatus("Loop stopped", Color3.fromRGB(70,70,110))
+    end
+end)
+
+copyCodeBtn.MouseButton1Click:Connect(function()
+    if not selectedRemote then return end
+    setclipboard(buildFireCode(selectedRemote, parseArgs(argBox.Text)))
+    setStatus("Copied to clipboard!", Color3.fromRGB(60,220,200))
+end)
+
+copySingleCode.MouseButton1Click:Connect(function()
+    if not selectedRemote then codeDisplay.Text = "-- No remote selected" return end
+    local code = buildFireCode(selectedRemote, parseArgs(argBox.Text))
+    codeDisplay.Text = code
+    setclipboard(code)
+end)
+
+copyLoopCode.MouseButton1Click:Connect(function()
+    if not selectedRemote then codeDisplay.Text = "-- No remote selected" return end
+    local code = buildLoopCode(selectedRemote, parseArgs(argBox.Text))
+    codeDisplay.Text = code
+    setclipboard(code)
+end)
+
+copyHookCode.MouseButton1Click:Connect(function()
+    if not selectedRemote then codeDisplay.Text = "-- No remote selected" return end
+    local code = buildHookCode(selectedRemote)
+    codeDisplay.Text = code
+    setclipboard(code)
+end)
+
+argBox:GetPropertyChangedSignal("Text"):Connect(updateCodePanel)
+searchBox:GetPropertyChangedSignal("Text"):Connect(function() filterRemotes(searchBox.Text) end)
+rescanBtn.MouseButton1Click:Connect(scanRemotes)
+rescanBtn.MouseEnter:Connect(function() rss.Transparency = 0 end)
+rescanBtn.MouseLeave:Connect(function() rss.Transparency = 0.4 end)
+
+-- ============================================================
+-- DECRYPTER LOGIC
+-- ============================================================
+
+local B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+
+local function decodeBase64(data)
+    data = data:gsub("[^"..B64.."=]", "")
+    local result = {}
+    local i = 1
+    while i <= #data do
+        local c1 = (B64:find(data:sub(i,i),1,true) or 1)-1
+        local c2 = (B64:find(data:sub(i+1,i+1),1,true) or 1)-1
+        local c3 = (B64:find(data:sub(i+2,i+2),1,true) or 1)-1
+        local c4 = (B64:find(data:sub(i+3,i+3),1,true) or 1)-1
+        local n = c1*262144 + c2*4096 + c3*64 + c4
+        table.insert(result, string.char(math.floor(n/65536)%256))
+        if data:sub(i+2,i+2) ~= "=" then table.insert(result, string.char(math.floor(n/256)%256)) end
+        if data:sub(i+3,i+3) ~= "=" then table.insert(result, string.char(n%256)) end
+        i = i + 4
+    end
+    return table.concat(result)
+end
+
+local function decodeHex(data)
+    data = data:gsub("%s",""):gsub("0x","")
+    local result = {}
+    for i = 1, #data, 2 do
+        local byte = tonumber(data:sub(i,i+1), 16)
+        if byte then table.insert(result, string.char(byte)) end
+    end
+    return table.concat(result)
+end
+
+local function decodeROT13(data)
+    return data:gsub("%a", function(c)
+        local base = c:match("%l") and string.byte("a") or string.byte("A")
+        return string.char((string.byte(c)-base+13)%26+base)
+    end)
+end
+
+local function decodeReverse(data) return data:reverse() end
+
+local function decodeXOR(data, key)
+    key = key or 0x58
+    local result = {}
+    for i = 1, #data do
+        table.insert(result, string.char(bit32.bxor(string.byte(data,i), key)))
+    end
+    return table.concat(result)
+end
+
+local function readabilityScore(text)
+    local score = 0
+    for _, kw in ipairs({"local","function","end","if","then","return","for","while","do","not","and","or","true","false","nil","print","game","workspace"}) do
+        local _, count = text:gsub(kw, "")
+        score = score + count * 3
+    end
+    local printable = 0
+    for i = 1, #text do
+        local b = string.byte(text, i)
+        if b >= 32 and b <= 126 then printable += 1 end
+    end
+    score = score + ((#text > 0 and printable/#text or 0) * 20)
+    return score
+end
+
+local function setDecryptStatus(text, color)
+    decryptStatus.Text = "Detected: " .. text
+    decryptStatus.TextColor3 = color or Color3.fromRGB(70,70,110)
+end
+
+local function tryDecode(method)
+    local input = decryptInput.Text
+    if input == "" then decryptOutput.Text = "-- No input" return end
+    local ok3, result = pcall(function()
+        if method == "base64"  then return decodeBase64(input)
+        elseif method == "hex" then return decodeHex(input)
+        elseif method == "rot13" then return decodeROT13(input)
+        elseif method == "reverse" then return decodeReverse(input)
+        elseif method == "xor" then return decodeXOR(input)
+        end
+    end)
+    decryptOutput.Text = (ok3 and result and #result > 0) and result or "-- Decode failed or empty output"
+end
+
+local function autoDetect()
+    local input = decryptInput.Text
+    if input == "" then decryptOutput.Text = "-- No input" return end
+    local attempts = {
+        {name="Base64",         fn=function() return decodeBase64(input) end},
+        {name="Hex",            fn=function() return decodeHex(input) end},
+        {name="ROT13",          fn=function() return decodeROT13(input) end},
+        {name="Reverse",        fn=function() return decodeReverse(input) end},
+        {name="XOR 0x58",       fn=function() return decodeXOR(input,0x58) end},
+        {name="XOR 0x1F",       fn=function() return decodeXOR(input,0x1F) end},
+        {name="XOR 0x41",       fn=function() return decodeXOR(input,0x41) end},
+        {name="Base64+ROT13",   fn=function() return decodeROT13(decodeBase64(input)) end},
+        {name="ROT13+Base64",   fn=function() return decodeBase64(decodeROT13(input)) end},
+        {name="Reverse+Base64", fn=function() return decodeBase64(decodeReverse(input)) end},
+    }
+    local best = {score=-1, result="", name="none"}
+    for _, attempt in ipairs(attempts) do
+        local ok3, result = pcall(attempt.fn)
+        if ok3 and result and #result > 2 then
+            local score = readabilityScore(result)
+            if score > best.score then best = {score=score, result=result, name=attempt.name} end
+        end
+    end
+    if best.score > 0 then
+        decryptOutput.Text = best.result
+        setDecryptStatus(best.name .. "  (score: "..math.floor(best.score)..")", Color3.fromRGB(80,220,100))
+    else
+        decryptOutput.Text = "-- Could not detect. May be Luraph/IronBrew/Prometheus bytecode -- cannot be decoded client-side."
+        setDecryptStatus("unknown / advanced obfuscation", Color3.fromRGB(255,100,80))
+    end
+end
+
+autoDecryptBtn.MouseButton1Click:Connect(autoDetect)
+b64Btn.MouseButton1Click:Connect(function() tryDecode("base64")  setDecryptStatus("Base64 (manual)",  Color3.fromRGB(100,160,255)) end)
+hexBtn.MouseButton1Click:Connect(function() tryDecode("hex")     setDecryptStatus("Hex (manual)",     Color3.fromRGB(255,180,80)) end)
+rot13Btn.MouseButton1Click:Connect(function() tryDecode("rot13") setDecryptStatus("ROT13 (manual)",   Color3.fromRGB(80,220,180)) end)
+reverseBtn.MouseButton1Click:Connect(function() tryDecode("reverse") setDecryptStatus("Reverse (manual)", Color3.fromRGB(220,100,80)) end)
+xorBtn.MouseButton1Click:Connect(function() tryDecode("xor")    setDecryptStatus("XOR 0x58 (manual)", Color3.fromRGB(160,220,80)) end)
+copyDecryptBtn.MouseButton1Click:Connect(function()
+    if decryptOutput.Text ~= "" then
+        setclipboard(decryptOutput.Text)
+        setDecryptStatus("copied to clipboard!", Color3.fromRGB(60,220,200))
+    end
+end)
+
+-- bypass strip updater
+task.spawn(function()
+    while true do
+        updateBypassStrip()
+        task.wait(0.5)
+    end
+end)
+
+-- ============================================================
+-- SMART TIPS ENGINE
+-- ============================================================
+
+local SPY_TIPS = {
+    idle    = "Press START SPY then play the game normally. Every remote the game fires will be logged here with its arguments.",
+    running = "Spy is active. Do in-game actions like buying, attacking, opening menus -- each action will log the remote and exact args used.",
+    hasLogs = "Click Re-Fire on any entry to instantly replay that action with the same args the game originally used.",
+    manyLogs = "Lots of remotes firing? Search for specific names in the Fire tab. Look for remotes named 'buy', 'purchase', 'equip', 'use' -- those are usually the interesting ones.",
+}
+
+local REMOTE_TIPS = {
+    -- by keyword in name
+    buy      = "This looks like a purchase remote. Try firing it with an item ID (number) as the argument. Check the Spy Logger to see what args the game sends when you buy something.",
+    purchase = "Purchase remote detected. The server likely validates your currency server-side so firing alone may not give items -- but the spy logger can show you what args are expected.",
+    equip    = "Equip remote. Try firing with your player object as arg1 or an item/tool name as a string. Use the spy logger to capture the exact call.",
+    attack   = "Attack remote. Likely takes a target position or player as argument. Try firing with no args first, then check spy logger for what the game normally sends.",
+    damage   = "Damage remote. Most games validate this server-side so raw firing may be rejected. Spy logger will show you what the legit call looks like.",
+    kill     = "Kill remote. Almost certainly server-validated. Capture the legit args via spy logger first.",
+    admin    = "Admin remote found. These are often protected by rank checks. Try firing with no args -- if nothing happens, check what args the spy logger captures.",
+    chat     = "Chat remote. Usually takes a string message. Try firing with a string arg like: hello",
+    open     = "Open remote -- likely opens a UI or chest. Try firing with no args first.",
+    close    = "Close remote. Inverse of an open remote -- try firing with no args.",
+    give     = "Give remote. Likely takes a player and item name or ID. Check spy logger for the exact format.",
+    teleport = "Teleport remote. Likely takes a Vector3 position or place name. Be careful -- some games kick for unusual positions.",
+    save     = "Save remote. Usually fires with player data. Firing this manually could corrupt your save -- use with caution.",
+    load     = "Load remote. Triggers a data load. Safe to fire with no args to test.",
+    event    = "Generic event remote. Fire with no args first to test, then use spy logger to see what the game normally passes.",
+    reward   = "Reward remote. Likely validates server-side but worth trying. Spy logger will show the expected args.",
+    claim    = "Claim remote. Similar to reward -- check spy logger for exact args before firing.",
+    vote     = "Vote remote. Usually takes a string or number. Try firing with a number like: 1",
+    ready    = "Ready remote. Usually fires with no args when the player signals they are ready. Try firing with no args.",
+    start    = "Start remote. May trigger a game round or minigame. Try firing with no args.",
+    spin     = "Spin remote -- likely a gacha or wheel spin. May require in-game currency server-side.",
+    pet      = "Pet remote. Try firing with a pet name or ID as string argument.",
+    upgrade  = "Upgrade remote. Likely takes an item ID or upgrade type. Check spy logger for exact args.",
+    trade    = "Trade remote. Takes player and item data. Complex args -- spy logger is your best bet here.",
+}
+
+local GENERIC_TIPS = {
+    noargs  = "This remote was fired with no arguments by the spy logger. Try firing it with no args in the Fire tab -- it may be a simple toggle or event.",
+    rf      = "This is a RemoteFunction (RF). It returns a value to the client. If it errors when fired manually it may require specific args -- check the spy logger.",
+    re      = "This is a RemoteEvent (RE). It sends data to the server with no return value. Generally safer to test with Fire Single.",
+    long    = "This remote has a long name which often means it is auto-generated or part of an anti-cheat system. Firing it may trigger a kick -- be careful.",
+    integrity = "This looks like an integrity or anti-cheat remote. Firing it or sending wrong data may result in a kick. Observe it in the spy logger first.",
+    replication = "Replication remote. Usually internal to Roblox systems. Firing manually is unlikely to do anything useful.",
+}
+
+local function getRemoteTip(remote)
+    if not remote then return "Select a remote from the list on the left to get started." end
+
+    local name = remote.Name:lower()
+    local isFunc = remote:IsA("RemoteFunction")
+    local tips = {}
+
+    -- check for danger keywords first
+    if name:find("integrity") or name:find("anticheat") or name:find("detect") then
+        table.insert(tips, GENERIC_TIPS.integrity)
+    elseif name:find("replication") or name:find("localization") then
+        table.insert(tips, GENERIC_TIPS.replication)
+    else
+        -- keyword match
+        local matched = false
+        for keyword, tip in pairs(REMOTE_TIPS) do
+            if name:find(keyword) then
+                table.insert(tips, tip)
+                matched = true
+                break
+            end
+        end
+        if not matched then
+            -- generic tips
+            if isFunc then
+                table.insert(tips, GENERIC_TIPS.rf)
+            else
+                table.insert(tips, GENERIC_TIPS.re)
+            end
+        end
+    end
+
+    -- long name warning
+    if #remote.Name > 40 then
+        table.insert(tips, "Long name detected -- " .. GENERIC_TIPS.long)
+    end
+
+    -- add general advice
+    table.insert(tips, "Path: " .. remote:GetFullName())
+
+    return table.concat(tips, "  |  ")
+end
+
+local function updateTips(remote)
+    tipsTxt.Text = getRemoteTip(remote)
+
+    -- color code by risk
+    local name = remote and remote.Name:lower() or ""
+    if name:find("integrity") or name:find("anticheat") or name:find("detect") then
+        tipsBox.BackgroundColor3 = Color3.fromRGB(22, 12, 12)
+        makeStroke(tipsBox, Color3.fromRGB(180, 50, 50), 1, 0.3)
+        tipsHeader.TextColor3 = Color3.fromRGB(220, 80, 80)
+        tipsDot.BackgroundColor3 = Color3.fromRGB(220, 80, 80)
+        tipsHeader.Text = "WARNING"
+    elseif name:find("buy") or name:find("purchase") or name:find("reward") or name:find("give") then
+        tipsBox.BackgroundColor3 = Color3.fromRGB(14, 20, 12)
+        makeStroke(tipsBox, Color3.fromRGB(60, 180, 60), 1, 0.3)
+        tipsHeader.TextColor3 = Color3.fromRGB(80, 220, 100)
+        tipsDot.BackgroundColor3 = Color3.fromRGB(80, 220, 100)
+        tipsHeader.Text = "TIP  (interesting)"
+    else
+        tipsBox.BackgroundColor3 = Color3.fromRGB(14, 12, 22)
+        makeStroke(tipsBox, Color3.fromRGB(80, 40, 140), 1, 0.4)
+        tipsHeader.TextColor3 = Color3.fromRGB(140, 60, 220)
+        tipsDot.BackgroundColor3 = Color3.fromRGB(140, 60, 220)
+        tipsHeader.Text = "TIP"
+    end
+end
+
+local function updateSpyTips()
+    if spyEnabled and logCount > 50 then
+        spyTipsTxt.Text = SPY_TIPS.manyLogs
+    elseif spyEnabled and logCount > 0 then
+        spyTipsTxt.Text = SPY_TIPS.hasLogs
+    elseif spyEnabled then
+        spyTipsTxt.Text = SPY_TIPS.running
+    else
+        spyTipsTxt.Text = SPY_TIPS.idle
+    end
+end
+
+-- hook into remote selection to update tips
+-- patch the existing row click by wrapping updateTips into scanRemotes
+local _originalMakeRemoteRow = makeRemoteRow
+makeRemoteRow = function(remote)
+    local item = _originalMakeRemoteRow(remote)
+    local originalClick = item.row.MouseButton1Click
+    item.row.MouseButton1Click:Connect(function()
+        updateTips(remote)
+    end)
+    return item
+end
+
+-- spy tips auto-update
+task.spawn(function()
+    while true do
+        updateSpyTips()
+        task.wait(1)
+    end
+end)
+
+-- initial tip
+updateTips(nil)
+
+refreshPlayers()
+scanRemotes()
