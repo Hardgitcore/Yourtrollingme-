@@ -1,0 +1,57 @@
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+    Name = "Auto Respond",
+    LoadingTitle = "Be a Streamer",
+    LoadingSubtitle = "by YamYum",
+    ConfigurationSaving = {
+        Enabled = false,
+    },
+    Discord = {
+        Enabled = false,
+    },
+    KeySystem = false,
+})
+
+local Tab = Window:CreateTab("Main", 4483362458)
+
+local Remote = game:GetService("ReplicatedStorage"):WaitForChild("StreamingEvent")
+local args = { "Responded" }
+
+local firing = false
+local count = 0
+local loop = nil
+
+local CountSection = Tab:CreateSection("Fire Count: 0")
+
+Tab:CreateToggle({
+    Name = "Auto Fire (Every 1s)",
+    CurrentValue = false,
+    Flag = "AutoFire",
+    Callback = function(state)
+        firing = state
+        if firing then
+            loop = task.spawn(function()
+                while firing do
+                    Remote:FireServer(unpack(args))
+                    count += 1
+                    CountSection:Set("Fire Count: " .. count)
+                    task.wait(0.0001)
+                end
+            end)
+        end
+    end,
+})
+
+Tab:CreateButton({
+    Name = "Reset Counter",
+    Callback = function()
+        count = 0
+        CountSection:Set("Fire Count: 0")
+        Rayfield:Notify({
+            Title = "Counter Reset",
+            Content = "Fire count has been reset to 0.",
+            Duration = 3,
+        })
+    end,
+})
