@@ -1,5 +1,6 @@
 -- LocalScript
 
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
@@ -14,11 +15,20 @@ local subLevelWatcher = nil
 
 local LAP_FOLDERS = {"Lap1","Lap2","Lap3","Lap4"}
 
--- throttle timers
 local weakTimer   = 0
 local fakeTimer   = 0
 local wraithTimer = 0
 local wallsTimer  = 0
+
+local clickEnabled     = false
+local fakeEnabled      = false
+local wraithEnabled    = false
+local wallsEnabled     = false
+local espEnabled       = false
+local hideEnabled      = false
+local promptEnabled    = false
+local weakEnabled      = false
+local altPromptEnabled = false
 
 -- ============================================================
 -- EXIT HELPERS
@@ -56,315 +66,6 @@ local function getAltExitPrompt()
 end
 
 -- ============================================================
--- GUI SETUP
--- ============================================================
-
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "EightTwentyHub"
-screenGui.ResetOnSpawn = false
-screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-screenGui.Parent = player.PlayerGui
-
-local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 248, 0, 100)
-mainFrame.Position = UDim2.new(0, 16, 0.5, -300)
-mainFrame.BackgroundColor3 = Color3.fromRGB(11, 11, 17)
-mainFrame.BorderSizePixel = 0
-mainFrame.Active = true
-mainFrame.Draggable = true
-mainFrame.Parent = screenGui
-Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 10)
-
-local outerStroke = Instance.new("UIStroke")
-outerStroke.Color = Color3.fromRGB(0, 210, 255)
-outerStroke.Thickness = 1.2
-outerStroke.Transparency = 0.3
-outerStroke.Parent = mainFrame
-
--- Title Bar
-local titleBar = Instance.new("Frame")
-titleBar.Size = UDim2.new(1, 0, 0, 46)
-titleBar.BackgroundColor3 = Color3.fromRGB(8, 8, 14)
-titleBar.BorderSizePixel = 0
-titleBar.Parent = mainFrame
-Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 10)
-
-local titleBarSquare = Instance.new("Frame")
-titleBarSquare.Size = UDim2.new(1, 0, 0, 10)
-titleBarSquare.Position = UDim2.new(0, 0, 1, -10)
-titleBarSquare.BackgroundColor3 = Color3.fromRGB(8, 8, 14)
-titleBarSquare.BorderSizePixel = 0
-titleBarSquare.Parent = titleBar
-
-local titleGrad = Instance.new("UIGradient")
-titleGrad.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 180, 255)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(80, 0, 200))
-})
-titleGrad.Rotation = 90
-titleGrad.Transparency = NumberSequence.new({
-    NumberSequenceKeypoint.new(0, 0.82),
-    NumberSequenceKeypoint.new(1, 0.82)
-})
-titleGrad.Parent = titleBar
-
-local titleAccent = Instance.new("Frame")
-titleAccent.Size = UDim2.new(1, 0, 0, 1)
-titleAccent.Position = UDim2.new(0, 0, 1, -1)
-titleAccent.BackgroundColor3 = Color3.fromRGB(0, 210, 255)
-titleAccent.BorderSizePixel = 0
-titleAccent.BackgroundTransparency = 0.3
-titleAccent.Parent = titleBar
-
-local iconCircle = Instance.new("Frame")
-iconCircle.Size = UDim2.new(0, 28, 0, 28)
-iconCircle.Position = UDim2.new(0, 10, 0.5, -14)
-iconCircle.BackgroundColor3 = Color3.fromRGB(0, 180, 255)
-iconCircle.BorderSizePixel = 0
-iconCircle.Parent = titleBar
-Instance.new("UICorner", iconCircle).CornerRadius = UDim.new(1, 0)
-
-local iconGrad = Instance.new("UIGradient")
-iconGrad.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 220, 255)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(100, 0, 255))
-})
-iconGrad.Rotation = 135
-iconGrad.Parent = iconCircle
-
-local iconLabel = Instance.new("TextLabel")
-iconLabel.Size = UDim2.new(1, 0, 1, 0)
-iconLabel.BackgroundTransparency = 1
-iconLabel.Text = "?"
-iconLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-iconLabel.TextSize = 13
-iconLabel.Font = Enum.Font.GothamBold
-iconLabel.Parent = iconCircle
-
-local titleLabel = Instance.new("TextLabel")
-titleLabel.Size = UDim2.new(1, -100, 1, 0)
-titleLabel.Position = UDim2.new(0, 46, 0, 0)
-titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "8:20 PM Hub"
-titleLabel.TextColor3 = Color3.fromRGB(240, 240, 255)
-titleLabel.TextSize = 15
-titleLabel.Font = Enum.Font.GothamBold
-titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-titleLabel.Parent = titleBar
-
-local versionLabel = Instance.new("TextLabel")
-versionLabel.Size = UDim2.new(0, 38, 1, 0)
-versionLabel.Position = UDim2.new(1, -44, 0, 0)
-versionLabel.BackgroundTransparency = 1
-versionLabel.Text = "v1.4"
-versionLabel.TextColor3 = Color3.fromRGB(0, 180, 255)
-versionLabel.TextSize = 10
-versionLabel.Font = Enum.Font.GothamBold
-versionLabel.TextXAlignment = Enum.TextXAlignment.Right
-versionLabel.Parent = titleBar
-
--- Status Row
-local statusRow = Instance.new("Frame")
-statusRow.Size = UDim2.new(1, -20, 0, 30)
-statusRow.Position = UDim2.new(0, 10, 0, 52)
-statusRow.BackgroundColor3 = Color3.fromRGB(18, 18, 28)
-statusRow.BorderSizePixel = 0
-statusRow.Parent = mainFrame
-Instance.new("UICorner", statusRow).CornerRadius = UDim.new(0, 6)
-
-local statusDot = Instance.new("Frame")
-statusDot.Size = UDim2.new(0, 7, 0, 7)
-statusDot.Position = UDim2.new(0, 10, 0.5, -3)
-statusDot.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
-statusDot.BorderSizePixel = 0
-statusDot.Parent = statusRow
-Instance.new("UICorner", statusDot).CornerRadius = UDim.new(1, 0)
-
-local statusLabel = Instance.new("TextLabel")
-statusLabel.Size = UDim2.new(0.5, -20, 1, 0)
-statusLabel.Position = UDim2.new(0, 24, 0, 0)
-statusLabel.BackgroundTransparency = 1
-statusLabel.Text = "Status: OFF"
-statusLabel.TextColor3 = Color3.fromRGB(180, 180, 200)
-statusLabel.TextSize = 11
-statusLabel.Font = Enum.Font.GothamBold
-statusLabel.TextXAlignment = Enum.TextXAlignment.Left
-statusLabel.Parent = statusRow
-
-local countLabel = Instance.new("TextLabel")
-countLabel.Size = UDim2.new(0.5, -10, 1, 0)
-countLabel.Position = UDim2.new(0.5, 0, 0, 0)
-countLabel.BackgroundTransparency = 1
-countLabel.Text = "Fired: 0"
-countLabel.TextColor3 = Color3.fromRGB(0, 180, 255)
-countLabel.TextSize = 11
-countLabel.Font = Enum.Font.GothamBold
-countLabel.TextXAlignment = Enum.TextXAlignment.Right
-countLabel.Parent = statusRow
-
--- ============================================================
--- HELPERS: Divider + Toggle
--- ============================================================
-
-local function makeDivider(yPos, label)
-    local div = Instance.new("Frame")
-    div.Size = UDim2.new(1, -20, 0, 1)
-    div.Position = UDim2.new(0, 10, 0, yPos)
-    div.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
-    div.BorderSizePixel = 0
-    div.Parent = mainFrame
-    if label then
-        local lbl = Instance.new("TextLabel")
-        lbl.Size = UDim2.new(0, 80, 0, 14)
-        lbl.Position = UDim2.new(0, 8, 0, yPos - 6)
-        lbl.BackgroundColor3 = Color3.fromRGB(11, 11, 17)
-        lbl.BorderSizePixel = 0
-        lbl.Text = "  " .. label .. "  "
-        lbl.TextColor3 = Color3.fromRGB(80, 80, 120)
-        lbl.TextSize = 9
-        lbl.Font = Enum.Font.GothamBold
-        lbl.Parent = mainFrame
-    end
-end
-
-local function makeToggle(labelText, yPos, accentColor)
-    local lbl = Instance.new("TextLabel")
-    lbl.Size = UDim2.new(1, -20, 0, 13)
-    lbl.Position = UDim2.new(0, 10, 0, yPos)
-    lbl.BackgroundTransparency = 1
-    lbl.Text = labelText
-    lbl.TextColor3 = Color3.fromRGB(130, 130, 160)
-    lbl.TextSize = 10
-    lbl.Font = Enum.Font.GothamBold
-    lbl.TextXAlignment = Enum.TextXAlignment.Left
-    lbl.Parent = mainFrame
-
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, -20, 0, 28)
-    btn.Position = UDim2.new(0, 10, 0, yPos + 14)
-    btn.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-    btn.BorderSizePixel = 0
-    btn.Text = ""
-    btn.AutoButtonColor = false
-    btn.Parent = mainFrame
-    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
-
-    local stroke = Instance.new("UIStroke")
-    stroke.Color = accentColor
-    stroke.Thickness = 1
-    stroke.Transparency = 0.6
-    stroke.Parent = btn
-
-    local bar = Instance.new("Frame")
-    bar.Size = UDim2.new(0, 3, 1, -8)
-    bar.Position = UDim2.new(0, 0, 0, 4)
-    bar.BackgroundColor3 = accentColor
-    bar.BorderSizePixel = 0
-    bar.Parent = btn
-    Instance.new("UICorner", bar).CornerRadius = UDim.new(0, 4)
-
-    local btnText = Instance.new("TextLabel")
-    btnText.Size = UDim2.new(1, -14, 1, 0)
-    btnText.Position = UDim2.new(0, 14, 0, 0)
-    btnText.BackgroundTransparency = 1
-    btnText.Text = "ENABLE"
-    btnText.TextColor3 = Color3.fromRGB(200, 200, 220)
-    btnText.TextSize = 11
-    btnText.Font = Enum.Font.GothamBold
-    btnText.TextXAlignment = Enum.TextXAlignment.Left
-    btnText.Parent = btn
-
-    local pill = Instance.new("Frame")
-    pill.Size = UDim2.new(0, 42, 0, 16)
-    pill.Position = UDim2.new(1, -48, 0.5, -8)
-    pill.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
-    pill.BorderSizePixel = 0
-    pill.Parent = btn
-    Instance.new("UICorner", pill).CornerRadius = UDim.new(1, 0)
-
-    local pillText = Instance.new("TextLabel")
-    pillText.Size = UDim2.new(1, 0, 1, 0)
-    pillText.BackgroundTransparency = 1
-    pillText.Text = "OFF"
-    pillText.TextColor3 = Color3.fromRGB(100, 100, 130)
-    pillText.TextSize = 9
-    pillText.Font = Enum.Font.GothamBold
-    pillText.Parent = pill
-
-    btn.MouseEnter:Connect(function() stroke.Transparency = 0.1 end)
-    btn.MouseLeave:Connect(function() if pillText.Text == "OFF" then stroke.Transparency = 0.6 end end)
-
-    return btn, stroke, bar, btnText, pill, pillText
-end
-
--- ============================================================
--- BUILD TOGGLES
--- ============================================================
-
-local y = 90
-local function nextY() local v = y y = y + 50 return v end
-
-makeDivider(86, "COMBAT")
-local clickBtn,  clickStroke,  clickBar,  clickText,  clickPill,  clickPillText  = makeToggle("Click Detectors",       nextY(), Color3.fromRGB(60,160,255))
-local fakeBtn,   fakeStroke,   fakeBar,   fakeText,   fakePill,   fakePillText   = makeToggle("Delete Fake Objects",   nextY(), Color3.fromRGB(255,160,40))
-local wraithBtn, wraithStroke, wraithBar, wraithText, wraithPill, wraithPillText = makeToggle("Delete Wraith Objects", nextY(), Color3.fromRGB(160,80,255))
-local wallsBtn,  wallsStroke,  wallsBar,  wallsText,  wallsPill,  wallsPillText  = makeToggle("Delete FakeWalls",      nextY(), Color3.fromRGB(255,140,40))
-local weakBtn,   weakStroke,   weakBar,   weakText,   weakPill,   weakPillText   = makeToggle("Delete WeakWalls",      nextY(), Color3.fromRGB(220,80,140))
-
-makeDivider(y + 2, "VISION")
-y = y + 10
-local espBtn,  espStroke,  espBar,  espText,  espPill,  espPillText  = makeToggle("Wraith ESP",   nextY(), Color3.fromRGB(255,80,80))
-local hideBtn, hideStroke, hideBar, hideText, hidePill, hidePillText = makeToggle("Hide Players", nextY(), Color3.fromRGB(40,200,200))
-
-makeDivider(y + 2, "UTILITY")
-y = y + 10
-local tpBtn,        tpStroke,        tpBar,        tpText,        tpPill,        tpPillText        = makeToggle("Teleport to Exit",      nextY(), Color3.fromRGB(60,220,120))
-local promptBtn,    promptStroke,    promptBar,    promptText,    promptPill,    promptPillText    = makeToggle("Auto Beat Sublevels",    nextY(), Color3.fromRGB(100,200,150))
-local altTpBtn,     altTpStroke,     altTpBar,     altTpText,     altTpPill,     altTpPillText     = makeToggle("Teleport to Alt Exit",  nextY(), Color3.fromRGB(80,200,255))
-local altPromptBtn, altPromptStroke, altPromptBar, altPromptText, altPromptPill, altPromptPillText = makeToggle("Auto Beat Alt Exits",   nextY(), Color3.fromRGB(140,220,255))
-
-mainFrame.Size = UDim2.new(0, 248, 0, y + 10)
-mainFrame.Position = UDim2.new(0, 16, 0.5, -(y + 10) / 2)
-
--- ============================================================
--- STATE
--- ============================================================
-
-local clickEnabled     = false
-local fakeEnabled      = false
-local wraithEnabled    = false
-local wallsEnabled     = false
-local espEnabled       = false
-local hideEnabled      = false
-local promptEnabled    = false
-local weakEnabled      = false
-local altPromptEnabled = false
-
-local function flip(enabled, btn, stroke, bar, btnText, pill, pillText, accentColor)
-    enabled = not enabled
-    if enabled then
-        btn.BackgroundColor3 = Color3.fromRGB(25, 14, 14)
-        stroke.Color = Color3.fromRGB(220, 50, 50)
-        stroke.Transparency = 0
-        bar.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
-        btnText.TextColor3 = Color3.fromRGB(255, 100, 100)
-        pill.BackgroundColor3 = Color3.fromRGB(180, 30, 30)
-        pillText.Text = "ON"
-        pillText.TextColor3 = Color3.fromRGB(255, 180, 180)
-    else
-        btn.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-        stroke.Color = accentColor
-        stroke.Transparency = 0.6
-        bar.BackgroundColor3 = accentColor
-        btnText.TextColor3 = Color3.fromRGB(200, 200, 220)
-        pill.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
-        pillText.Text = "OFF"
-        pillText.TextColor3 = Color3.fromRGB(100, 100, 130)
-    end
-    return enabled
-end
-
--- ============================================================
 -- HIDE PLAYERS
 -- ============================================================
 
@@ -386,7 +87,10 @@ end
 local function restorePlayer(p)
     if p == player then return end
     if p.Character then setCharacterVisible(p.Character, true) end
-    if hideConnections[p] then pcall(function() hideConnections[p]:Disconnect() end) hideConnections[p] = nil end
+    if hideConnections[p] then
+        pcall(function() hideConnections[p]:Disconnect() end)
+        hideConnections[p] = nil
+    end
 end
 
 -- ============================================================
@@ -444,72 +148,6 @@ local function startSubLevelWatcher()
 end
 
 -- ============================================================
--- TOGGLE CONNECTIONS
--- ============================================================
-
-clickBtn.MouseButton1Click:Connect(function()
-    clickEnabled = flip(clickEnabled, clickBtn, clickStroke, clickBar, clickText, clickPill, clickPillText, Color3.fromRGB(60,160,255))
-    statusDot.BackgroundColor3 = clickEnabled and Color3.fromRGB(0,220,100) or Color3.fromRGB(255,60,60)
-    statusLabel.Text = "Status: " .. (clickEnabled and "ON" or "OFF")
-    statusLabel.TextColor3 = clickEnabled and Color3.fromRGB(0,220,100) or Color3.fromRGB(180,180,200)
-end)
-
-fakeBtn.MouseButton1Click:Connect(function()
-    fakeEnabled = flip(fakeEnabled, fakeBtn, fakeStroke, fakeBar, fakeText, fakePill, fakePillText, Color3.fromRGB(255,160,40))
-end)
-
-wraithBtn.MouseButton1Click:Connect(function()
-    wraithEnabled = flip(wraithEnabled, wraithBtn, wraithStroke, wraithBar, wraithText, wraithPill, wraithPillText, Color3.fromRGB(160,80,255))
-end)
-
-wallsBtn.MouseButton1Click:Connect(function()
-    wallsEnabled = flip(wallsEnabled, wallsBtn, wallsStroke, wallsBar, wallsText, wallsPill, wallsPillText, Color3.fromRGB(255,140,40))
-end)
-
-weakBtn.MouseButton1Click:Connect(function()
-    weakEnabled = flip(weakEnabled, weakBtn, weakStroke, weakBar, weakText, weakPill, weakPillText, Color3.fromRGB(220,80,140))
-    weakTimer = 0
-end)
-
-espBtn.MouseButton1Click:Connect(function()
-    espEnabled = flip(espEnabled, espBtn, espStroke, espBar, espText, espPill, espPillText, Color3.fromRGB(255,80,80))
-    if espEnabled then startSubLevelWatcher() else clearESP() end
-end)
-
-hideBtn.MouseButton1Click:Connect(function()
-    hideEnabled = flip(hideEnabled, hideBtn, hideStroke, hideBar, hideText, hidePill, hidePillText, Color3.fromRGB(40,200,200))
-    if hideEnabled then
-        for _, p in ipairs(Players:GetPlayers()) do applyHideToPlayer(p) end
-        playerAddedConn = Players.PlayerAdded:Connect(applyHideToPlayer)
-    else
-        if playerAddedConn then playerAddedConn:Disconnect() end
-        for _, p in ipairs(Players:GetPlayers()) do restorePlayer(p) end
-    end
-end)
-
-tpBtn.MouseButton1Click:Connect(function()
-    pcall(function()
-        local part = getExitPart()
-        if part then player.Character.HumanoidRootPart.CFrame = part.CFrame + Vector3.new(0, 5, 0) end
-    end)
-end)
-
-promptBtn.MouseButton1Click:Connect(function()
-    promptEnabled = flip(promptEnabled, promptBtn, promptStroke, promptBar, promptText, promptPill, promptPillText, Color3.fromRGB(100,200,150))
-end)
-
-altTpBtn.MouseButton1Click:Connect(function()
-    pcall(function()
-        local part = getAltExitPart()
-        if part then player.Character.HumanoidRootPart.CFrame = part.CFrame + Vector3.new(0, 5, 0) end
-    end)
-end)
-
-altPromptBtn.MouseButton1Click:Connect(function()
-    altPromptEnabled = flip(altPromptEnabled, altPromptBtn, altPromptStroke, altPromptBar, altPromptText, altPromptPill, altPromptPillText, Color3.fromRGB(80,200,255))
-end)
-
--- ============================================================
 -- HEARTBEAT FUNCTIONS
 -- ============================================================
 
@@ -517,7 +155,7 @@ local function fireClicks()
     for _, obj in ipairs(workspace:GetDescendants()) do
         if obj:IsA("ClickDetector") then
             local ok = pcall(fireclickdetector, obj)
-            if ok then firedCount += 1 countLabel.Text = "Fired: " .. firedCount end
+            if ok then firedCount += 1 end
         end
     end
 end
@@ -565,13 +203,172 @@ local function deleteWeak()
 end
 
 -- ============================================================
+-- RAYFIELD WINDOW
+-- ============================================================
+
+local Window = Rayfield:CreateWindow({
+    Name = "PM Hub  v1.4",
+    LoadingTitle = "PM Hub",
+    LoadingSubtitle = "8:20pm bad gaem trust 😔🥀",
+    ConfigurationSaving = { Enabled = false },
+    Discord = { Enabled = false },
+    KeySystem = false
+})
+
+local CombatTab  = Window:CreateTab("Combat",  4483362458)
+local VisionTab  = Window:CreateTab("Vision",  4483362458)
+local UtilityTab = Window:CreateTab("Utility", 4483362458)
+
+-- ============================================================
+-- COMBAT TAB
+-- ============================================================
+
+CombatTab:CreateSection("Combat")
+
+CombatTab:CreateToggle({
+    Name = "Click Detectors",
+    CurrentValue = false,
+    Flag = "ClickDetectors",
+    Callback = function(val)
+        clickEnabled = val
+    end,
+})
+
+CombatTab:CreateToggle({
+    Name = "Delete Fake Objects",
+    CurrentValue = false,
+    Flag = "DeleteFake",
+    Callback = function(val)
+        fakeEnabled = val
+        fakeTimer = 0
+    end,
+})
+
+CombatTab:CreateToggle({
+    Name = "Delete Wraith Objects",
+    CurrentValue = false,
+    Flag = "DeleteWraith",
+    Callback = function(val)
+        wraithEnabled = val
+        wraithTimer = 0
+    end,
+})
+
+CombatTab:CreateToggle({
+    Name = "Delete FakeWalls",
+    CurrentValue = false,
+    Flag = "DeleteFakeWalls",
+    Callback = function(val)
+        wallsEnabled = val
+        wallsTimer = 0
+    end,
+})
+
+CombatTab:CreateToggle({
+    Name = "Delete WeakWalls",
+    CurrentValue = false,
+    Flag = "DeleteWeakWalls",
+    Callback = function(val)
+        weakEnabled = val
+        weakTimer = 0
+    end,
+})
+
+-- ============================================================
+-- VISION TAB
+-- ============================================================
+
+VisionTab:CreateSection("Vision")
+
+VisionTab:CreateToggle({
+    Name = "Wraith ESP",
+    CurrentValue = false,
+    Flag = "WraithESP",
+    Callback = function(val)
+        espEnabled = val
+        if espEnabled then
+            startSubLevelWatcher()
+            local sub = workspace:FindFirstChild("Sublevel")
+            if sub then scanContainer(sub) end
+        else
+            clearESP()
+        end
+    end,
+})
+
+VisionTab:CreateToggle({
+    Name = "Hide Players",
+    CurrentValue = false,
+    Flag = "HidePlayers",
+    Callback = function(val)
+        hideEnabled = val
+        if hideEnabled then
+            for _, p in ipairs(Players:GetPlayers()) do applyHideToPlayer(p) end
+            playerAddedConn = Players.PlayerAdded:Connect(applyHideToPlayer)
+        else
+            if playerAddedConn then playerAddedConn:Disconnect() end
+            for _, p in ipairs(Players:GetPlayers()) do restorePlayer(p) end
+        end
+    end,
+})
+
+-- ============================================================
+-- UTILITY TAB
+-- ============================================================
+
+UtilityTab:CreateSection("Teleport")
+
+UtilityTab:CreateButton({
+    Name = "Teleport to Exit",
+    Callback = function()
+        pcall(function()
+            local part = getExitPart()
+            if part then
+                player.Character.HumanoidRootPart.CFrame = part.CFrame + Vector3.new(0, 5, 0)
+            end
+        end)
+    end,
+})
+
+UtilityTab:CreateButton({
+    Name = "Teleport to Alt Exit",
+    Callback = function()
+        pcall(function()
+            local part = getAltExitPart()
+            if part then
+                player.Character.HumanoidRootPart.CFrame = part.CFrame + Vector3.new(0, 5, 0)
+            end
+        end)
+    end,
+})
+
+UtilityTab:CreateSection("Automation")
+
+UtilityTab:CreateToggle({
+    Name = "Auto Beat Sublevels",
+    CurrentValue = false,
+    Flag = "AutoBeatSublevels",
+    Callback = function(val)
+        promptEnabled = val
+    end,
+})
+
+UtilityTab:CreateToggle({
+    Name = "Auto Beat Alt Exits",
+    CurrentValue = false,
+    Flag = "AutoBeatAltExits",
+    Callback = function(val)
+        altPromptEnabled = val
+    end,
+})
+
+-- ============================================================
 -- MAIN HEARTBEAT
 -- ============================================================
 
 RunService.Heartbeat:Connect(function(dt)
     if clickEnabled then fireClicks() end
 
-    -- throttled deletions — run every 2 seconds to avoid lag
     if fakeEnabled then
         fakeTimer += dt
         if fakeTimer >= 2 then fakeTimer = 0 deleteFake() end
