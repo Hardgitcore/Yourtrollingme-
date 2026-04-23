@@ -1,0 +1,93 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+-- State Variables
+local AutoFireEnabled = false
+local FireLoopThread = nil
+
+local Window = Rayfield:CreateWindow({
+   Name = "Word Finder // Super Edition",
+   LoadingTitle = "Crazay...",
+   LoadingSubtitle = "WOA!",
+   ConfigurationSaving = { Enabled = false },
+   KeySystem = false
+})
+
+local MainTab = Window:CreateTab("Automation", 4483362458)
+local BypassTab = Window:CreateTab("Bypass", 4483362458)
+
+-- ============================================================
+-- REMOTE SPAMMER LOGIC (TOGGLE)
+-- ============================================================
+
+local function startRemoteLoop()
+    if FireLoopThread then task.cancel(FireLoopThread) end
+    
+    FireLoopThread = task.spawn(function()
+        while AutoFireEnabled do
+            -- Look for remotes in both ReplicatedStorage and its subfolders
+            local allObjects = ReplicatedStorage:GetDescendants()
+            local blacklist = {"ban", "kick", "check", "detect", "log", "anticheat", "telemetry", "report"}
+            
+            for _, obj in ipairs(allObjects) do
+                if not AutoFireEnabled then break end
+                
+                -- Check if it's a RemoteEvent and not in the blacklist
+                if obj:IsA("RemoteEvent") then
+                    local isSafe = true
+                    local nameLower = obj.Name:lower()
+                    
+                    for _, word in ipairs(blacklist) do
+                        if nameLower:find(word) then
+                            isSafe = false
+                            break
+                        end
+                    end
+
+                    if isSafe then
+                        -- Fire the remote safely
+                        obj:FireServer()
+                    end
+                end
+            end
+            task.wait(0.001) -- Set to 1 second to keep it undetected and stable
+        end
+    end)
+end
+
+-- ============================================================
+-- UI ELEMENTS
+-- ============================================================
+
+MainTab:CreateSection("Remote Controls")
+
+MainTab:CreateToggle({
+   Name = "Auto-Fire Safe Remotes",
+   CurrentValue = false,
+   Flag = "RemoteToggle", 
+   Callback = function(Value)
+       AutoFireEnabled = Value
+       if Value then
+           Rayfield:Notify({Title = "Automation Active", Content = "Looping through safe remotes...", Duration = 3})
+           startRemoteLoop()
+       else
+           Rayfield:Notify({Title = "Automation Stopped", Content = "Remote loop deactivated.", Duration = 3})
+       end
+   end,
+})
+
+MainTab:CreateSection("Information")
+MainTab:CreateLabel("Use at you own will.")
+
+BypassTab:CreateSection("Stealth Settings")
+
+BypassTab:CreateParagraph({Title = "Anti-Cheat Protection", Content = "This UI is parented to CoreGui/gethui to prevent the game from detecting your menu."})
+
+BypassTab:CreateButton({
+    Name = "Destroy UI",
+    Callback = function()
+        Rayfield:Destroy()
+    end,
+})
+
+Rayfield:Notify({Title = "Ready", Content = "Full-Auto Toggle is live.", Duration = 5})
