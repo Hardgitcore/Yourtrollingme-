@@ -97,21 +97,73 @@ end
 -- ESP
 -- ============================================================
 
+local espTagged = {}
+local espHighlights = {}
+local espConnections = {}
+local espGhosts = {}      -- tracks ghost parts so we can clean them up
+local espEnabled = false
+
+local espFolder = Instance.new("Folder")
+espFolder.Name = "WraithESP_Ghosts"
+espFolder.Parent = workspace
+
 local function highlightObject(obj)
     if espTagged[obj] then return end
+
+    -- Get a part to anchor to
+    local part = nil
+    if obj:IsA("BasePart") then
+        part = obj
+    elseif obj:IsA("Model") then
+        part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart", true)
+    end
+    if not part then return end
+
+    -- Ghost part — stays behind after the original is deleted
+    local ghost = Instance.new("Part")
+    ghost.Size = obj:IsA("Model") and Vector3.new(3, 6, 3) or part.Size
+    ghost.CFrame = part.CFrame
+    ghost.Anchored = true
+    ghost.CanCollide = false
+    ghost.Transparency = 1
+    ghost.Parent = espFolder
+
     local h = Instance.new("Highlight")
     h.FillColor = Color3.fromRGB(255, 80, 80)
     h.OutlineColor = Color3.fromRGB(255, 80, 80)
-    h.Adornee = obj
-    h.Parent = workspace
+    h.FillTransparency = 0.4
+    h.OutlineTransparency = 0
+    h.Adornee = ghost
+    h.Parent = ghost
+
+    -- Follow the original while alive; freeze when deleted
+    local conn = game:GetService("RunService").Heartbeat:Connect(function()
+        if part and part.Parent then
+            ghost.CFrame = part.CFrame
+        end
+    end)
+
     espTagged[obj] = h
     table.insert(espHighlights, h)
+    table.insert(espGhosts, ghost)
+    table.insert(espConnections, conn)
 end
 
 local function scanContainer(container)
     for _, obj in ipairs(container:GetDescendants()) do
-        if obj:IsA("Model") or obj:IsA("BasePart") then highlightObject(obj) end
+        if obj:IsA("Model") or obj:IsA("BasePart") then
+            highlightObject(obj)
+        end
     end
+
+    -- Catch anything added to this sublevel after the scan
+    local conn = container.DescendantAdded:Connect(function(obj)
+        if not espEnabled then return end
+        if obj:IsA("Model") or obj:IsA("BasePart") then
+            highlightObject(obj)
+        end
+    end)
+    table.insert(espConnections, conn)
 end
 
 local function clearESP()
@@ -119,7 +171,27 @@ local function clearESP()
     espConnections = {}
     for _, h in ipairs(espHighlights) do pcall(function() h:Destroy() end) end
     espHighlights = {}
+    for _, g in ipairs(espGhosts) do pcall(function() g:Destroy() end) end
+    espGhosts = {}
     espTagged = {}
+end
+
+local function startSubLevelWatcher()
+    local function hookSublevel(child)
+        if child.Name ~= "Sublevel" then return end
+        scanContainer(child)
+    end
+
+    -- Scan any Sublevel already present
+    local existing = workspace:FindFirstChild("Sublevel")
+    if existing then hookSublevel(existing) end
+
+    -- Watch for new Sublevels added later
+    local conn = workspace.ChildAdded:Connect(function(child)
+        if not espEnabled then return end
+        hookSublevel(child)
+    end)
+    table.insert(espConnections, conn)
 end
 
 -- ============================================================
@@ -223,10 +295,10 @@ local UtilityTab = Window:CreateTab("Utility", 4483362458)
 -- COMBAT TAB
 -- ============================================================
 
-CombatTab:CreateSection("Combat")
+CombatTab:CreateSection("Delete/fire buttons")
 
 CombatTab:CreateToggle({
-    Name = "Click Detectors",
+    Name = "Fire all buttons",
     CurrentValue = false,
     Flag = "ClickDetectors",
     Callback = function(val)
@@ -345,7 +417,7 @@ UtilityTab:CreateButton({
 UtilityTab:CreateSection("Automation")
 
 UtilityTab:CreateToggle({
-    Name = "Auto Beat Sublevels",
+    Name = "Auto Beat Sublevels (OP)",
     CurrentValue = false,
     Flag = "AutoBeatSublevels",
     Callback = function(val)
@@ -354,7 +426,7 @@ UtilityTab:CreateToggle({
 })
 
 UtilityTab:CreateToggle({
-    Name = "Auto Beat Alt Exits",
+    Name = "Auto Beat Alt Exits (OP)",
     CurrentValue = false,
     Flag = "AutoBeatAltExits",
     Callback = function(val)
