@@ -1150,14 +1150,28 @@ local function startSpy()
     spyEnabled = true
     spyToggleBtn.Text = "STOP SPY"
     spyToggleBtn.TextColor3 = Color3.fromRGB(255,100,100)
+    
+    -- List of remotes to block entirely
+    local blockedRemotes = {
+        ["updatecurretcall"] = true,
+        ["updatecurrentcall"] = true -- Added the likely correct spelling just in case
+    }
+
     hookRef = hookmetamethod(game, "__namecall", function(self, ...)
         local method = getnamecallmethod()
+        local name = self.Name
+        
+        -- BLOCKING LOGIC: If the remote is in our list, stop it here
+        if blockedRemotes[name:lower()] then
+            return nil 
+        end
+
         if spyEnabled and (method == "FireServer" or method == "InvokeServer" or method == "FireAllClients") then
             if self:IsA("RemoteEvent") or self:IsA("RemoteFunction") then
                 local args = {...}
                 local remoteType = self:IsA("RemoteFunction") and "RemoteFunction" or "RemoteEvent"
                 task.defer(function()
-                    addLogEntry(self.Name, remoteType, method, args)
+                    addLogEntry(name, remoteType, method, args)
                 end)
             end
         end
@@ -1315,29 +1329,29 @@ fireAllSafeBtn.MouseButton1Click:Connect(function()
     local args = parseArgs(argBox.Text)
     local fired, skipped = 0, 0
     
-    -- Tell the user we are working
+    -- Provide visual feedback
     setStatus("Mass Firing: Starting...", Color3.fromRGB(255, 200, 60))
 
-    -- Use task.spawn so the GUI doesn't freeze while firing
+    -- Using task.spawn so the GUI stays responsive (not frozen)
     task.spawn(function()
         for _, remote in ipairs(remoteList) do
+            -- This checks the safety function from Step 1
             if isSafeRemote(remote) then
-                -- fireRemote already handles your Bypass Tab settings!
+                -- This uses your existing firing logic + bypasses
                 local ok3 = fireRemote(remote, selectedPlayer, args)
                 if ok3 then fired += 1 end
                 
-                -- Small delay: 0.03s is fast enough to be a "nuke" 
-                -- but slow enough to not crash your internet.
+                -- Anti-kick delay (don't set to 0 or you might crash)
                 task.wait(0.03) 
             else
                 skipped += 1
             end
             
-            -- Update status live
+            -- Live update on the status bar
             statusBar.Text = string.format("Firing... [%d/%d]", fired + skipped, #remoteList)
         end
         
-        setStatus(string.format("Mass Fire Done: %d fired, %d skipped", fired, skipped),
+        setStatus(string.format("Done: Fired %d, Skipped %d (Blocked: updatecurretcall)", fired, skipped),
             Color3.fromRGB(60, 200, 255))
     end)
 end)
