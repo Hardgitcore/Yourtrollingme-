@@ -1,0 +1,144 @@
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local HttpService = game:GetService("HttpService")
+
+local Window = Rayfield:CreateWindow({
+    Name = "Guess my Country",
+    LoadingTitle = "I live where leprechauns live! dont expect good accuracy...",
+    ConfigurationSaving = {Enabled = true, FolderName = "GroqGuesser"}
+})
+
+-- Variables
+local GroqAPIKey = ""
+local AutoGuessLetters = false
+local CurrentAiGuess = ""
+local LastStatus = ""
+local RoundMemory = {} 
+local LastHint = ""
+
+-- Paths
+local HintPath = game:GetService("Players").LocalPlayer.PlayerGui.GuessPhaseUI.HintFrame.HintLabel
+local WordBoxes = game:GetService("Players").LocalPlayer.PlayerGui.GuessPhaseUI.WordBoxes
+local LetterRemote = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("GuessLetter")
+
+local MainTab = Window:CreateTab("Settings", 4483362458)
+
+-- UI
+MainTab:CreateInput({
+    Name = "Groq API Key",
+    PlaceholderText = "Paste gsk_... key here",
+    RemoveTextAfterFocusLost = false,
+    Callback = function(Text) GroqAPIKey = Text end,
+})
+
+local AnswerDisplay = MainTab:CreateInput({
+    Name = "AI Current Guess",
+    PlaceholderText = "Waiting for game...",
+    RemoveTextAfterFocusLost = false,
+    Callback = function() end,
+})
+
+MainTab:CreateToggle({
+    Name = "Auto Guess Letters",
+    CurrentValue = false,
+    Callback = function(V) AutoGuessLetters = V end,
+})
+
+-- Helper: Get current revealed letters (Pattern)
+local function GetPattern()
+    local pattern = ""
+    local count = 0
+    local children = WordBoxes:GetChildren()
+    table.sort(children, function(a, b) return a.Name < b.Name end)
+
+    for _, obj in ipairs(children) do
+        if obj:IsA("GuiObject") then
+            count = count + 1
+            local letterObj = obj:FindFirstChild("Letter")
+            if letterObj and letterObj.Text ~= "" and letterObj.Text ~= " " then
+                pattern = pattern .. letterObj.Text
+            else
+                pattern = pattern .. "_"
+            end
+        end
+    end
+    return pattern, count
+end
+
+-- AI Request Function
+local function AskGroq(hintTable, pattern, boxCount)
+    if GroqAPIKey == "" or #hintTable == 0 then return nil end
+    
+    local combinedHints = table.concat(hintTable, " | ")
+    local url = "https://api.groq.com/openai/v1/chat/completions"
+    
+    local prompt = string.format(
+        "Hints: [%s]. Letters: %d. Pattern: %s. Respond ONLY with the country name.",
+        combinedHints, boxCount, pattern
+    )
+
+    local success, response = pcall(function()
+        return HttpService:RequestAsync({
+            Url = url,
+            Method = "POST",
+            Headers = {["Authorization"] = "Bearer "..GroqAPIKey, ["Content-Type"] = "application/json"},
+            Body = HttpService:JSONEncode({
+                model = "llama-3.3-70b-versatile",
+                messages = {
+                    {role = "system", content = "You are a geography solver. No sentences, just the country name."},
+                    {role = "user", content = prompt}
+                },
+                temperature = 0.1
+            })
+        })
+    end)
+
+    if success and response.Success then
+        local decoded = HttpService:JSONDecode(response.Body)
+        return decoded.choices[1].message.content:gsub("[^%a%s]", "")
+    end
+    return nil
+end
+
+-- Main Loop
+task.spawn(function()
+    while task.wait(1.5) do
+        local currentHint = HintPath.Text
+        local pattern, boxCount = GetPattern()
+
+        -- Reset round if game is idle or boxes cleared
+        if boxCount == 0 or currentHint == "" then
+            RoundMemory = {}
+            LastHint = ""
+            CurrentAiGuess = ""
+            AnswerDisplay:Set("Waiting...")
+        end
+
+        local statusCheck = currentHint .. pattern
+        
+        -- Update AI guess if something changed
+        if currentHint ~= "" and statusCheck ~= LastStatus then
+            LastStatus = statusCheck
+            
+            if currentHint ~= LastHint then
+                LastHint = currentHint
+                table.insert(RoundMemory, currentHint)
+            end
+
+            local aiGuess = AskGroq(RoundMemory, pattern, boxCount)
+            if aiGuess then
+                CurrentAiGuess = aiGuess
+                AnswerDisplay:Set(aiGuess)
+            end
+        end
+
+        -- Safe Letter Automation (Revealing the word letter by letter)
+        if AutoGuessLetters and CurrentAiGuess ~= "" and CurrentAiGuess ~= "Waiting..." then
+            local cleanWord = CurrentAiGuess:gsub("%s+", "")
+            if #cleanWord > 0 then
+                local randomIdx = math.random(1, #cleanWord)
+                local char = string.sub(cleanWord, randomIdx, randomIdx)
+                LetterRemote:FireServer(char)
+            end
+        end
+    end
+end)
