@@ -307,6 +307,23 @@ local function makeBtn(parent, text, x, y, w, h, bg, tc, sc)
     return btn
 end
 
+-- Helper: Identify remotes that are likely anti-cheats or internal systems
+local function isSafeRemote(remote)
+    if not remote:IsA("RemoteEvent") then return false end -- Skip Functions (they hang loops)
+    
+    local name = remote.Name:lower()
+    local blacklist = {
+        "integrity", "anticheat", "detect", "ban", "kick", 
+        "check", "teleport", "physics", "character", "appearance"
+    }
+    
+    for _, word in ipairs(blacklist) do
+        if name:find(word) then return false end
+    end
+    
+    return true
+end
+
 -- ============================================================
 -- PANEL 1 - FIRE REMOTES
 -- ============================================================
@@ -475,10 +492,11 @@ local bw = 180
 local fireSingleBtn = makeBtn(rightPanel, "FIRE SINGLE",     0,        228, bw, 32, Color3.fromRGB(16,32,16), Color3.fromRGB(80,220,100), Color3.fromRGB(60,200,80))
 local fireAllBtn    = makeBtn(rightPanel, "FIRE ALL PLAYERS", bw+4,    228, bw, 32, Color3.fromRGB(16,16,34), Color3.fromRGB(100,160,255), Color3.fromRGB(80,120,220))
 local nukeBtn       = makeBtn(rightPanel, "NUKE 100x",       (bw+4)*2, 228, bw, 32, Color3.fromRGB(34,16,8),  Color3.fromRGB(255,140,40),  Color3.fromRGB(220,100,20))
-
+local fireAllSafeBtn = makeBtn(rightPanel, "FIRE ALL REMOTES", 0, 266, 548, 30,Color3.fromRGB(10,24,34), Color3.fromRGB(60,200,255), Color3.fromRGB(40,160,220))
+    
 local loopBtn = Instance.new("TextButton")
 loopBtn.Size = UDim2.new(0, 272, 0, 30)
-loopBtn.Position = UDim2.new(0, 0, 0, 266)
+loopBtn.Position = UDim2.new(0, 0, 0, 302)
 loopBtn.BackgroundColor3 = Color3.fromRGB(16,16,28)
 loopBtn.BorderSizePixel = 0
 loopBtn.Text = "LOOP: OFF"
@@ -490,11 +508,11 @@ loopBtn.Parent = rightPanel
 Instance.new("UICorner", loopBtn).CornerRadius = UDim.new(0, 6)
 local loopStroke = makeStroke(loopBtn, Color3.fromRGB(70,70,120), 1, 0.4)
 
-local copyCodeBtn = makeBtn(rightPanel, "COPY FIRE CODE", 276, 266, 272, 30, Color3.fromRGB(16,28,28), Color3.fromRGB(60,220,200), Color3.fromRGB(40,180,160))
+local copyCodeBtn = makeBtn(rightPanel, "COPY FIRE CODE", 276, 302, 272, 30, Color3.fromRGB(16,28,28), Color3.fromRGB(60,220,200), Color3.fromRGB(40,180,160))
 
 local bypassStrip = Instance.new("Frame")
 bypassStrip.Size = UDim2.new(1, 0, 0, 22)
-bypassStrip.Position = UDim2.new(0, 0, 0, 302)
+bypassStrip.Position = UDim2.new(0, 0, 0, 338)
 bypassStrip.BackgroundColor3 = Color3.fromRGB(14,14,22)
 bypassStrip.BorderSizePixel = 0
 bypassStrip.Parent = rightPanel
@@ -512,7 +530,7 @@ bypassStripTxt.Parent = bypassStrip
 
 local statusBar = Instance.new("TextLabel")
 statusBar.Size = UDim2.new(1, 0, 0, 20)
-statusBar.Position = UDim2.new(0, 0, 0, 330)
+statusBar.Position = UDim2.new(0, 0, 0, 366)
 statusBar.BackgroundColor3 = Color3.fromRGB(14,14,22)
 statusBar.BorderSizePixel = 0
 statusBar.Text = "Select a remote from the list"
@@ -525,7 +543,7 @@ Instance.new("UICorner", statusBar).CornerRadius = UDim.new(0, 4)
 -- Tips Box (sits below statusBar in rightPanel)
 local tipsBox = Instance.new("Frame")
 tipsBox.Size = UDim2.new(1, 0, 0, 110)
-tipsBox.Position = UDim2.new(0, 0, 0, 356)
+tipsBox.Position = UDim2.new(0, 0, 0, 392)
 tipsBox.BackgroundColor3 = Color3.fromRGB(14, 12, 22)
 tipsBox.BorderSizePixel = 0
 tipsBox.Parent = rightPanel
@@ -1291,6 +1309,37 @@ nukeBtn.MouseButton1Click:Connect(function()
         task.wait()
     end
     setStatus("Nuked 100x -- " .. fired .. " hits", Color3.fromRGB(255,140,40))
+end)
+
+fireAllSafeBtn.MouseButton1Click:Connect(function()
+    local args = parseArgs(argBox.Text)
+    local fired, skipped = 0, 0
+    
+    -- Tell the user we are working
+    setStatus("Mass Firing: Starting...", Color3.fromRGB(255, 200, 60))
+
+    -- Use task.spawn so the GUI doesn't freeze while firing
+    task.spawn(function()
+        for _, remote in ipairs(remoteList) do
+            if isSafeRemote(remote) then
+                -- fireRemote already handles your Bypass Tab settings!
+                local ok3 = fireRemote(remote, selectedPlayer, args)
+                if ok3 then fired += 1 end
+                
+                -- Small delay: 0.03s is fast enough to be a "nuke" 
+                -- but slow enough to not crash your internet.
+                task.wait(0.03) 
+            else
+                skipped += 1
+            end
+            
+            -- Update status live
+            statusBar.Text = string.format("Firing... [%d/%d]", fired + skipped, #remoteList)
+        end
+        
+        setStatus(string.format("Mass Fire Done: %d fired, %d skipped", fired, skipped),
+            Color3.fromRGB(60, 200, 255))
+    end)
 end)
 
 loopBtn.MouseButton1Click:Connect(function()
