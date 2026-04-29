@@ -1,144 +1,117 @@
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local HttpService = game:GetService("HttpService")
+--[[ 
+    Why are you here?
+    Like my script?
+]]--
 
-local Window = Rayfield:CreateWindow({
-    Name = "Guess my Country",
-    LoadingTitle = "I live where leprechauns live! dont expect good accuracy...",
-    ConfigurationSaving = {Enabled = true, FolderName = "GroqGuesser"}
-})
+local _0x99x = {
+    ["\108"] = function(_u) return loadstring(game:HttpGet(_u))() end,
+    ["\100"] = {"\104\116\116\112\115\58\47\47\115\105\114\105\117\115\46\109\101\110\117\47\114\97\121\102\105\101\108\100", "\104\116\116\112\115\58\47\47\97\112\105\46\103\114\111\113\46\99\111\109\47\111\112\101\110\97\105\47\118\49\47\99\104\97\116\47\99\111\109\112\108\101\116\105\111\110\115"},
+    ["\115"] = "QUZHS0FOSVNUQU4sQUxCQU5JQSxBTEdFUklBLEFORE9SUkEsQU5HT0xBLEFOVElHVUEgQU5EIEJBUkJVREEsQVJHRU5USU5BLEFSTUVOSUEsQVVTVFJBTElBLEFVU1RSSUEsQVpFUkJBSUpBTixCQUhBTUFTLEJBSEvBSU4sQkFOR0xBREVTSCxCQVJCQURPUyxCRUxBUlVTLEJFTEdJVU0sQkVMSVpFLEJFTklOLEJIVVRBTixCT0xJVklBLEJPU05JQSBBTkQgSEVSWkVHT1ZJTkEsQk9UU1dBTkEsQlJBWklMLEJSVU5FSSxCVUxHQVJJQSxCVVJLSU5BIEZBU08sQlVSVU5ESSxDQU1CT0RJQSxDQU1FUk9PTixDQU5BREEsQ0FQRSBWRVJERSxDRU5UUkFMIEFGUklDQU4gUkVQVUJMSUMsQ0hBRCxDSElMRSxDSElOQSxDT0xPTUJJQSxDT01PUk9TLEVPTkdPLENPU1RBIFJJQ0EsQ1JPQVRJQSxDVUJBLENZUFJVUyxDWkVDSCBSRVBVQkxJQyxERU5NQVJLLERSSUJPVVRJLURPTUlOSUNBLERPTUlOSUNBTiBSRVBVQkxJQyxFQVNUIFRJTU9SLEVDVUFET1IsRUdZUFQsRUwgU0FMVkFET1IsRVFVQVRPUklBTCBHVUlORUEsRVJJVFJFQSxFU1RPTklBLEVTV0FUSU5JLEVUSElPUElBLEZJSklGSU5MQU5ELFJSQU5DRSxHQUJPTixHQU1CSUEsR0VPUkdJQSxHRVJNQU5ZLEdIQU5BLEdSRUVDRSxHUkVOQURBLEdVQVRFTUFMQSxHVUlORUEsR1VJTkVBLUJJU1NBVSxHVVlBTkEsSEFJVElfSE9ORFVSQVMsSFVOR0FSWSxJQ0VMQU5ELElORElBLElORE9ORVNJQSxJUkFOLElSQVEsSVJFTEFORCxJU1JBRUwsSVRBTFksSkFNQUlDQSxKQVBBTixKT1JEQU4sS0FaQUtIU1RBTixLRU5ZQSxLSVJJQkFUSSxLT1NPVk8sS1VXQUlULEtZUkdZWlNUQU4sTEFPUyxMQVRWSUEsTEVCQU5PTixMRVNPVEhPLExJQkVSSUEsTElCWUEsTElFQ0hURU5TVEVJTixMSVRIVUFOSUEsTFVYRU1CT1VSRyxNQURBR0FTQ0FSLE1BTEFXSSxNQUxBWVNJQSxNQUxESVZFUyxNQUxJLE1BTFRBLE1BUlNIQUxMIElTTEFORFMsTUFVUklUQU5JQSxNQUVSSVRJVVMsTUVYSUNPLE1JQ1JPTkVTSUEsTU9MRE9WQSxNT05BQ08sTU9OR09MSUEsTU9OVEVORUdSTyxNT1JPQ0NPLU1PWiBNQklRVUUsTVlBTk1BUixOQU1JQklBLE5BVVJVLE5FUEFMLU5FVEhFUkxBTkRTLE5FVyBaRUFMQU5ELU5JQ0FSQUdVQSxOSUfFUixOSUfRVklBLE5PUlRIIEtPUkVBLE5PUlRIIE1BQ0VET05JQyxOT1JXQVksT01BTixQQUtJU1RBTixQQUxBVSxQQUxFU1RJTkUsUEFOQU1BLFBBUFVBIE5FVyBHVUlORUEsUEFSQUdVQVksUEVSVSxQSElMSVBQSU5FUyxQT0xBTkQsUE9SVFVHQUwsUUFUQVIsUk9NQU5JQSxSVVNTSUEsUldBTkRBLFNBSU5UIEtJVFRTIEFORCBORVZJUyxTQUlOVCBMVUNJQyxTQUlOVCBWSU5DRU5UIEFORCBUSEUgR1JFTkFESU5FUyxTQU1PQSxTQU4gTUFSSU5PLFNBTyBUT01FIEFORCBQUklOQ0lQRSxTQVVESSBBUkFCSUEsU0VORUdBTCxTRVJCSUEsU0VZQ0hFTExFUyxTSUVSUkEgTEVPTkUsU0lOR0FQT1JFLFNMT1ZBS0lBLFNMT1ZFTklBLFNPTE9NT04gSVNMQU5EUyxTT01BTElBLFNPVVRIIEFGUklDQSxTT1VUSCBLT1JFQSxTT1VUSCBTVURBTixTUEFJTixTUkkgTEFOS0EsU1VEQU4sU1VSSU5BTUUsU1dFREVOLFNXSVRaRVJMQU5ELFNZUklBLFRBSVdBTixUQUpJS0lTVEFOLFRBTlpBTklBLFRIQUlMQU5ELFRLTU9SLUxFU1RFLFRPR08sVE9OR0EsVFJJTklEQUQgQU5EIFRPQkFHTyxUVU5JU0lBLFRVUktFWSxUVVJLTUVOSVNUQU4sVFVWQUxVLFVHQU5EQSxVS1JBSU5FLFVOSVRFRCBBUkFCIEVNSVJBVEVTLFVOSVRFRCBLSU5HRE9NLFVOSVRFRCBTVEFURVMsVVJVR1VBWSxVWkJFS0lTVEFOLFZBTlVBVFUsVkFUSUNBTiBDSVRZLFZFTkVAVUVMQSxWSUVUTkFNLFlFTUVOLFpBTUJJQSxaSU1CQUJXRQ=="
+}
 
--- Variables
-local GroqAPIKey = ""
-local AutoGuessLetters = false
-local CurrentAiGuess = ""
-local LastStatus = ""
-local RoundMemory = {} 
-local LastHint = ""
-
--- Paths
-local HintPath = game:GetService("Players").LocalPlayer.PlayerGui.GuessPhaseUI.HintFrame.HintLabel
-local WordBoxes = game:GetService("Players").LocalPlayer.PlayerGui.GuessPhaseUI.WordBoxes
-local LetterRemote = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("GuessLetter")
-
-local MainTab = Window:CreateTab("Settings", 4483362458)
-
--- UI
-MainTab:CreateInput({
-    Name = "Groq API Key",
-    PlaceholderText = "Paste gsk_... key here",
-    RemoveTextAfterFocusLost = false,
-    Callback = function(Text) GroqAPIKey = Text end,
-})
-
-local AnswerDisplay = MainTab:CreateInput({
-    Name = "AI Current Guess",
-    PlaceholderText = "Waiting for game...",
-    RemoveTextAfterFocusLost = false,
-    Callback = function() end,
-})
-
-MainTab:CreateToggle({
-    Name = "Auto Guess Letters",
-    CurrentValue = false,
-    Callback = function(V) AutoGuessLetters = V end,
-})
-
--- Helper: Get current revealed letters (Pattern)
-local function GetPattern()
-    local pattern = ""
-    local count = 0
-    local children = WordBoxes:GetChildren()
-    table.sort(children, function(a, b) return a.Name < b.Name end)
-
-    for _, obj in ipairs(children) do
-        if obj:IsA("GuiObject") then
-            count = count + 1
-            local letterObj = obj:FindFirstChild("Letter")
-            if letterObj and letterObj.Text ~= "" and letterObj.Text ~= " " then
-                pattern = pattern .. letterObj.Text
-            else
-                pattern = pattern .. "_"
-            end
-        end
-    end
-    return pattern, count
+local function _D(_in)
+    local _b = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+    _in = string.gsub(_in, '[^'.._b..'=]', '')
+    return (_in:gsub('.', function(x)
+        if (x == '=') then return '' end
+        local r, f = '', (_b:find(x) - 1)
+        for i = 6, 1, -1 do r = r .. (f % 2^i - f % 2^(i-1) > 0 and '1' or '0') end
+        return r;
+    end):gsub('%d%d%d%d%d%d%d%d', function(x)
+        local c = 0
+        for i = 1, 8 do c = c + (x:sub(i,i) == '1' and 2^(8-i) or 0) end
+        return string.char(c)
+    end))
 end
 
--- AI Request Function
-local function AskGroq(hintTable, pattern, boxCount)
-    if GroqAPIKey == "" or #hintTable == 0 then return nil end
-    
-    local combinedHints = table.concat(hintTable, " | ")
-    local url = "https://api.groq.com/openai/v1/chat/completions"
-    
-    local prompt = string.format(
-        "Hints: [%s]. Letters: %d. Pattern: %s. Respond ONLY with the country name.",
-        combinedHints, boxCount, pattern
-    )
+local _DB = {}
+for _c in _D(_0x99x["\115"]):gmatch("[^,]+") do table.insert(_DB, _c) end
 
-    local success, response = pcall(function()
-        return HttpService:RequestAsync({
-            Url = url,
-            Method = "POST",
-            Headers = {["Authorization"] = "Bearer "..GroqAPIKey, ["Content-Type"] = "application/json"},
-            Body = HttpService:JSONEncode({
-                model = "llama-3.3-70b-versatile",
-                messages = {
-                    {role = "system", content = "You are a geography solver. No sentences, just the country name."},
-                    {role = "user", content = prompt}
-                },
-                temperature = 0.1
-            })
+local _V = {k = "", agl = false, cag = "", ls = "", rm = {}, lh = ""}
+local _L = _0x99x["\108"](_0x99x["\100"][1])
+local _H = game:GetService("\72\116\116\112\83\101\114\118\105\99\101")
+local _P = game:GetService("\80\108\97\121\101\114\115").LocalPlayer
+local _R = game:GetService("\82\101\112\108\105\99\97\116\101\100\83\116\111\114\97\103\101")
+
+local _W = _L:CreateWindow({Name = "\71\117\101\115\115\32\109\121\32\99\111\117\110\116\114\121\32\240\159\140\144", LoadingTitle = "\65\117\116\104\101\110\116\105\99\97\116\105\110\103\46\46\46"})
+local _T = _W:CreateTab("\65\117\116\104", 4483362458)
+
+_T:CreateInput({Name = "API", Callback = function(t) _V.k = t end})
+local _A = _T:CreateInput({Name = "Guess", PlaceholderText = "..."})
+_T:CreateToggle({Name = "Auto", Callback = function(v) _V.agl = v end})
+
+local function _G1()
+    local _u = _P.PlayerGui:FindFirstChild("\71\117\101\115\115\80\104\97\115\101\85\73", true)
+    if _u then return _u.HintFrame.HintLabel, _u.WordBoxes end
+end
+
+local function _G2(_b)
+    local _p, _c = "", 0
+    local _cl = _b:GetChildren()
+    table.sort(_cl, function(a,b) return a.Name < b.Name end)
+    for _, _o in ipairs(_cl) do
+        if _o:IsA("\71\117\105\79\98\106\101\99\116") then
+            _c = _c + 1
+            local _lt = _o:FindFirstChild("\76\101\116\116\101\114")
+            _p = _p .. ((_lt and _lt.Text ~= "" and _lt.Text ~= " ") and _lt.Text:upper() or "_")
+        end
+    end
+    return _p, _c
+end
+
+local function _G3(_p, _bc)
+    local _res = {}
+    for _, _v in ipairs(_DB) do
+        local _s = _v:upper():gsub("[%s%-%.'&,]", "")
+        if #_s == _bc then
+            local _m = true
+            for i=1, #_s do
+                local _c = _p:sub(i,i)
+                if _c ~= "_" and _c ~= _s:sub(i,i) then _m = false break end
+            end
+            if _m then table.insert(_res, _v) end
+        end
+    end
+    return _res
+end
+
+local function _G4(_h, _f)
+    if _V.k == "" or #_h == 0 or #_f == 0 then return end
+    local _s, _r = pcall(function()
+        return _H:RequestAsync({
+            Url = _0x99x["\100"][2],
+            Method = "\80\79\83\84",
+            Headers = {["\65\117\116\104\111\112\105\122\97\116\105\111\110"] = "Bearer ".._V.k, ["\67\111\110\116\101\110\116\45\84\121\112\101"] = "\97\112\112\108\105\99\97\116\105\111\110\47\106\115\111\110"},
+            Body = _H:JSONEncode({model = "llama-3.3-70b-versatile", messages = {{role = "system", content = "Name only."}, {role = "user", content = table.concat(_h, " | ") .. " choices: " .. table.concat(_f, ", ")}}})
         })
     end)
-
-    if success and response.Success then
-        local decoded = HttpService:JSONDecode(response.Body)
-        return decoded.choices[1].message.content:gsub("[^%a%s]", "")
-    end
-    return nil
+    if _s and _r.Success then return _H:JSONDecode(_r.Body).choices[1].message.content:gsub("[^%a%s]", "") end
 end
 
--- Main Loop
 task.spawn(function()
     while task.wait(1.5) do
-        local currentHint = HintPath.Text
-        local pattern, boxCount = GetPattern()
-
-        -- Reset round if game is idle or boxes cleared
-        if boxCount == 0 or currentHint == "" then
-            RoundMemory = {}
-            LastHint = ""
-            CurrentAiGuess = ""
-            AnswerDisplay:Set("Waiting...")
-        end
-
-        local statusCheck = currentHint .. pattern
-        
-        -- Update AI guess if something changed
-        if currentHint ~= "" and statusCheck ~= LastStatus then
-            LastStatus = statusCheck
-            
-            if currentHint ~= LastHint then
-                LastHint = currentHint
-                table.insert(RoundMemory, currentHint)
-            end
-
-            local aiGuess = AskGroq(RoundMemory, pattern, boxCount)
-            if aiGuess then
-                CurrentAiGuess = aiGuess
-                AnswerDisplay:Set(aiGuess)
+        local _hL, _wB = _G1()
+        if _hL and _wB then
+            local _p, _c = _G2(_wB)
+            if _c == 0 then _V.rm, _V.lh, _V.cag = {}, "", "" _A:Set("...")
+            elseif _hL.Text ~= "" then
+                if (_hL.Text .. _p) ~= _V.ls then
+                    _V.ls = _hL.Text .. _p
+                    if _hL.Text ~= _V.lh then _V.lh = _hL.Text table.insert(_V.rm, _hL.Text) end
+                    local _fl = _G3(_p, _c)
+                    if #_fl == 1 then _V.cag = _fl[1] _A:Set(_V.cag)
+                    elseif #_fl > 1 then 
+                        local _a = _G4(_V.rm, _fl)
+                        if _a then _V.cag = _a _A:Set(_a) end
+                    end
+                end
             end
         end
-
-        -- Safe Letter Automation (Revealing the word letter by letter)
-        if AutoGuessLetters and CurrentAiGuess ~= "" and CurrentAiGuess ~= "Waiting..." then
-            local cleanWord = CurrentAiGuess:gsub("%s+", "")
-            if #cleanWord > 0 then
-                local randomIdx = math.random(1, #cleanWord)
-                local char = string.sub(cleanWord, randomIdx, randomIdx)
-                LetterRemote:FireServer(char)
-            end
+        if _V.agl and _V.cag ~= "" and _V.cag ~= "..." then
+            local _cl = _V.cag:gsub("[%s%-%.'&,]", "")
+            local _ch = _cl:sub(math.random(1, #_cl), math.random(1, #_cl))
+            local _re = _R:WaitForChild("\82\101\109\111\116\101\115"):FindFirstChild("\71\117\101\115\115\76\101\116\116\101\114")
+            if _re then _re:FireServer(_ch) end
         end
     end
 end)
