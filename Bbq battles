@@ -19,15 +19,48 @@ local Window = Rayfield:CreateWindow({
 
 local Tab = Window:CreateTab("Main", 4483362458)
 
-Tab:CreateParagraph({
-    Title = "BBQ Hub",
-    Content = "(IMPORTANT) Don't claim the gift when your leaving or the lotta coins wont work enjoy!"
-})
-
+--- Variables ---
 local connections = {}
 local timers = { claim = 0, spin = 0, eat = 0 }
 local interval = 1
 local claimCount = 0
+
+-- Hitbox Variables
+local hitboxEnabled = false
+local hitboxSize = 10
+
+--- Functions ---
+
+local function applyHitbox(character)
+    if not character then return end
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        if hitboxEnabled then
+            hrp.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
+            hrp.Transparency = 0.7
+            hrp.CanCollide = false
+        else
+            -- Reset to default Roblox HumanoidRootPart stats
+            hrp.Size = Vector3.new(2, 2, 1)
+            hrp.Transparency = 1
+            hrp.CanCollide = false
+        end
+    end
+end
+
+local function updateAllHitboxes()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= Players.LocalPlayer and player.Character then
+            applyHitbox(player.Character)
+        end
+    end
+end
+
+--- UI Components ---
+Tab:CreateParagraph({
+    Title = "BBQ Hub",
+    Content = "(IMPORTANT) Don't claim the gift when your leaving or the lotta coins wont work enjoy!"
+})
 
 local label = Tab:CreateLabel("Claimed: 0 times")
 
@@ -124,8 +157,249 @@ Tab:CreateToggle({
     end,
 })
 
+Tab:CreateSection("Combat")
+
+Tab:CreateToggle({
+    Name = "Hitbox Expander",
+    CurrentValue = false,
+    Flag = "HitboxToggle",
+    Callback = function(state)
+        hitboxEnabled = state
+        updateAllHitboxes()
+    end,
+})
+
+Tab:CreateSlider({
+    Name = "Hitbox Size",
+    Range = {2, 50},
+    Increment = 1,
+    Suffix = " Studs",
+    CurrentValue = 10,
+    Flag = "HitboxSlider",
+    Callback = function(Value)
+        hitboxSize = Value
+        if hitboxEnabled then
+            updateAllHitboxes()
+        end
+    end,
+})
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local spinRemote = ReplicatedStorage:WaitForChild("Remote"):WaitForChild("SpinWheelEvent")
+local eatRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Eat")
+local claimRemote = ReplicatedStorage:WaitForChild("ClaimCoinsPopUp")
+
+local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
+
+local Window = Rayfield:CreateWindow({
+    Name = "BBQ Hub",
+    LoadingTitle = "Bake n eat",
+    LoadingSubtitle = "YummersYam",
+    Theme = "Amethyst",
+    DisableRayfieldPrompts = true,
+    DisableBuildWarnings = true,
+})
+
+local Tab = Window:CreateTab("Main", 4483362458)
+
+--- Variables ---
+local connections = {}
+local timers = { claim = 0, spin = 0, eat = 0 }
+local interval = 1
+local claimCount = 0
+
+-- Hitbox Variables
+local hitboxEnabled = false
+local hitboxSize = 10
+
+--- Functions ---
+
+local function applyHitbox(character)
+    if not character then return end
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        if hitboxEnabled then
+            hrp.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
+            hrp.Transparency = 0.7
+            hrp.CanCollide = false
+        else
+            -- Reset to default Roblox HumanoidRootPart stats
+            hrp.Size = Vector3.new(2, 2, 1)
+            hrp.Transparency = 1
+            hrp.CanCollide = false
+        end
+    end
+end
+
+local function updateAllHitboxes()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= Players.LocalPlayer and player.Character then
+            applyHitbox(player.Character)
+        end
+    end
+end
+
+--- UI Components ---
+Tab:CreateParagraph({
+    Title = "BBQ Hub",
+    Content = "(IMPORTANT) Don't claim the gift when your leaving or the lotta coins wont work enjoy!"
+})
+
+local label = Tab:CreateLabel("Claimed: 0 times")
+
+Tab:CreateSlider({
+    Name = "Fire Interval (seconds)",
+    Range = {0.5, 10},
+    Increment = 0.5,
+    Suffix = "s",
+    CurrentValue = 1,
+    Flag = "Interval",
+    Callback = function(val)
+        interval = val
+    end,
+})
+
+Tab:CreateSection("Coin Claimer")
+
+Tab:CreateToggle({
+    Name = "Bunch of coins/spins",
+    CurrentValue = false,
+    Flag = "AutoClaim",
+    Callback = function(state)
+        if state then
+            connections.claim = RunService.Heartbeat:Connect(function(dt)
+                timers.claim += dt
+                if timers.claim >= interval then
+                    timers.claim = 0
+                    claimCount += 1
+                    pcall(function() claimRemote:FireServer() end)
+                    label:Set("Claimed: " .. claimCount .. " times")
+                end
+            end)
+        else
+            if connections.claim then connections.claim:Disconnect() connections.claim = nil end
+        end
+    end,
+})
+
+Tab:CreateButton({
+    Name = "Reset Count",
+    Callback = function()
+        claimCount = 0
+        label:Set("Claimed: 0 times")
+    end,
+})
+
+Tab:CreateSection("Spin Wheel")
+
+Tab:CreateToggle({
+    Name = "Auto Spin",
+    CurrentValue = false,
+    Flag = "AutoSpin",
+    Callback = function(state)
+        if state then
+            connections.spin = RunService.Heartbeat:Connect(function(dt)
+                timers.spin += dt
+                if timers.spin >= interval then
+                    timers.spin = 0
+                    pcall(function() spinRemote:FireServer(unpack({"Normal"})) end)
+                end
+            end)
+        else
+            if connections.spin then connections.spin:Disconnect() connections.spin = nil end
+        end
+    end,
+})
+
+Tab:CreateSection("Eat")
+
+Tab:CreateToggle({
+    Name = "Auto Eat",
+    CurrentValue = false,
+    Flag = "AutoEat",
+    Callback = function(state)
+        if state then
+            connections.eat = RunService.Heartbeat:Connect(function(dt)
+                timers.eat += dt
+                if timers.eat >= interval then
+                    timers.eat = 0
+                    pcall(function()
+                        local char = Players.LocalPlayer.Character
+                        if char then
+                            local stick = char:FindFirstChild("Stick")
+                            if stick then
+                                eatRemote:FireServer(stick)
+                            end
+                        end
+                    end)
+                end
+            end)
+        else
+            if connections.eat then connections.eat:Disconnect() connections.eat = nil end
+        end
+    end,
+})
+
+Tab:CreateSection("Combat")
+
+Tab:CreateToggle({
+    Name = "Hitbox Expander",
+    CurrentValue = false,
+    Flag = "HitboxToggle",
+    Callback = function(state)
+        hitboxEnabled = state
+        updateAllHitboxes()
+    end,
+})
+
+Tab:CreateSlider({
+    Name = "Hitbox Size",
+    Range = {2, 50},
+    Increment = 1,
+    Suffix = " Studs",
+    CurrentValue = 10,
+    Flag = "HitboxSlider",
+    Callback = function(Value)
+        hitboxSize = Value
+        if hitboxEnabled then
+            updateAllHitboxes()
+        end
+    end,
+})
+
+--- Logic Connections ---
+
+-- Function to handle a single player's character life cycle
+local function monitorPlayer(player)
+    -- Apply to their current character if they have one
+    if player.Character then
+        applyHitbox(player.Character)
+    end
+
+    -- Apply every time they respawn in the future
+    player.CharacterAdded:Connect(function(char)
+        task.wait(1) -- Wait for the character to actually exist in the workspace
+        applyHitbox(char)
+    end)
+end
+
+-- 1. Setup listeners for all players CURRENTLY in the server
+for _, player in ipairs(Players:GetPlayers()) do
+    if player ~= Players.LocalPlayer then
+        monitorPlayer(player)
+    end
+end
+
+-- 2. Setup listeners for anyone who JOINS later
+Players.PlayerAdded:Connect(function(player)
+    monitorPlayer(player)
+end)
+
 Rayfield:Notify({
     Title = "BBQ Battles",
-    Content = "Loaded",
+    Content = "Hitbox System Fully Active",
     Duration = 3,
 })
