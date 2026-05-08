@@ -42,7 +42,7 @@ Tab:CreateSlider({
 Tab:CreateSection("Coin Claimer")
 
 Tab:CreateToggle({
-    Name = "Auto Claim Coins",
+    Name = "Bunch of coins",
     CurrentValue = false,
     Flag = "AutoClaim",
     Callback = function(state)
