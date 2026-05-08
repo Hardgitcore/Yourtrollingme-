@@ -19,7 +19,11 @@ local Window = Rayfield:CreateWindow({
 
 local Tab = Window:CreateTab("Main", 4483362458)
 
--- Shared state
+Tab:CreateParagraph({
+    Title = "BBQ Hub",
+    Content = "(IMPORTANT) Don't claim the gift when your leaving or the lotta coins wont work enjoy!"
+})
+
 local connections = {}
 local timers = { claim = 0, spin = 0, eat = 0 }
 local interval = 1
@@ -42,7 +46,7 @@ Tab:CreateSlider({
 Tab:CreateSection("Coin Claimer")
 
 Tab:CreateToggle({
-    Name = "Bunch of coins",
+    Name = "Bunch of coins/spins",
     CurrentValue = false,
     Flag = "AutoClaim",
     Callback = function(state)
