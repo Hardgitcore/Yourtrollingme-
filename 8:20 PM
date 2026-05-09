@@ -415,7 +415,7 @@ UtilityTab:CreateToggle({
 UtilityTab:CreateSection("Pathfinder")
 
 UtilityTab:CreateButton({
-    Name = "Load Pathfinder",
+    Name = "Load Pathfinder (STILL FIXING NOT THE BEST)",
     Callback = function()
         loadstring(game:HttpGet("https://raw.githubusercontent.com/Hardgitcore/Yourtrollingme-/refs/heads/main/Pathfinder"))()
     end,
