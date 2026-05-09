@@ -1,0 +1,340 @@
+local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
+local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
+
+local Players = game:GetService("Players")
+local PathfindingService = game:GetService("PathfindingService")
+local RunService = game:GetService("RunService")
+
+local lp = Players.LocalPlayer
+local Character, Humanoid, Root
+
+local Settings = {
+    Enabled = false,
+    WalkSpeed = 35,
+    InteractionRadius = 35,
+    AvoidChaser = false,
+    ChaserFleeDistance = 30,
+}
+
+local isNavigating = false
+local isFleeing = false
+local reachedConn, blockedConn
+local nextWaypointIndex = 1
+local allWaypoints = {}
+local stuckTimer = 0
+local lastStuckPos = Vector3.zero
+local freeAttempts = 0
+
+--// CHARACTER SETUP
+local function SetupCharacter()
+    Character = lp.Character or lp.CharacterAdded:Wait()
+    Humanoid = Character:WaitForChild("Humanoid")
+    Root = Character:WaitForChild("HumanoidRootPart")
+    Humanoid.WalkSpeed = Settings.WalkSpeed
+    isNavigating = false
+    isFleeing = false
+end
+
+SetupCharacter()
+lp.CharacterAdded:Connect(function()
+    task.wait(1)
+    SetupCharacter()
+end)
+
+--// LOGIC FUNCTIONS (Unchanged)
+local function GetChaser()
+    local sub = workspace:FindFirstChild("Sublevel")
+    if not sub then return nil end
+    local chaser = sub:FindFirstChild("Chaser")
+    if not chaser then return nil end
+    return chaser:FindFirstChild("HumanoidRootPart") or chaser:FindFirstChildWhichIsA("BasePart")
+end
+
+local function GetExit()
+    local sub = workspace:FindFirstChild("Sublevel")
+    if not sub then return nil end
+    local exitFolder = sub:FindFirstChild("Exit")
+    if not exitFolder then return nil end
+    return exitFolder:FindFirstChild("exit")
+end
+
+local function FireAllClickDetectors()
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("ClickDetector") then
+            task.spawn(function() pcall(function() fireclickdetector(obj) end) end)
+        end
+    end
+end
+
+local function FireAura()
+    if not Root then return end
+    FireAllClickDetectors()
+    for _, folderName in ipairs({"Sublevel", "Spawners"}) do
+        local folder = workspace:FindFirstChild(folderName)
+        if folder then
+            for _, obj in ipairs(folder:GetDescendants()) do
+                local part = obj.Parent
+                if part and part:IsA("BasePart") then
+                    local dist = (Root.Position - part.Position).Magnitude
+                    if dist <= Settings.InteractionRadius then
+                        if obj:IsA("ProximityPrompt") then
+                            task.spawn(function() pcall(function() fireproximityprompt(obj) end) end)
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+local function stopNav()
+    isNavigating = false
+    if reachedConn then reachedConn:Disconnect(); reachedConn = nil end
+    if blockedConn then blockedConn:Disconnect(); blockedConn = nil end
+    allWaypoints = {}
+    nextWaypointIndex = 1
+end
+
+local function TryEscapeCorner()
+    if not Root or not Humanoid then return end
+    Humanoid.Jump = true
+    task.wait(0.3)
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    params.FilterDescendantsInstances = {Character}
+    local dirs = {Vector3.new(1,0,0), Vector3.new(-1,0,0), Vector3.new(0,0,1), Vector3.new(0,0,-1)}
+    local bestDir, bestDist = nil, 0
+    for _, dir in ipairs(dirs) do
+        local result = workspace:Raycast(Root.Position, dir * 10, params)
+        local dist = result and result.Distance or 10
+        if dist > bestDist then bestDist = dist; bestDir = dir end
+    end
+    if bestDir then
+        for i = 1, 8 do
+            if not Settings.Enabled then break end
+            Root.CFrame = Root.CFrame + (bestDir * 1.2)
+            task.wait(0.05)
+        end
+    end
+    freeAttempts += 1
+end
+
+local function followPath(destination, agentRadius)
+    if not Root or not Humanoid then return end
+    agentRadius = agentRadius or 2
+    stopNav()
+    isNavigating = true
+    freeAttempts = 0
+    stuckTimer = 0
+    lastStuckPos = Root.Position
+
+    local path = PathfindingService:CreatePath({
+        AgentRadius = agentRadius,
+        AgentHeight = 5,
+        AgentCanJump = true,
+        AgentCanClimb = true,
+        WaypointSpacing = 5,
+    })
+
+    local ok = pcall(function() path:ComputeAsync(Root.Position, destination) end)
+    if not ok or path.Status ~= Enum.PathStatus.Success then
+        isNavigating = false
+        Humanoid:MoveTo(destination)
+        return
+    end
+
+    allWaypoints = path:GetWaypoints()
+    if #allWaypoints < 2 then isNavigating = false; return end
+
+    blockedConn = path.Blocked:Connect(function(blockedIdx)
+        if blockedIdx >= nextWaypointIndex then
+            local newRadius = math.max(agentRadius - 0.25, 0.5)
+            stopNav()
+            task.wait(0.1)
+            followPath(destination, newRadius)
+        end
+    end)
+
+    reachedConn = Humanoid.MoveToFinished:Connect(function(reached)
+        if not Settings.Enabled then stopNav(); return end
+        if reached and nextWaypointIndex < #allWaypoints then
+            nextWaypointIndex += 1
+            local wp = allWaypoints[nextWaypointIndex]
+            if wp.Action == Enum.PathWaypointAction.Jump then Humanoid.Jump = true end
+            Humanoid:MoveTo(wp.Position)
+        else
+            stopNav()
+        end
+    end)
+
+    nextWaypointIndex = 2
+    local firstWp = allWaypoints[nextWaypointIndex]
+    if firstWp and firstWp.Action == Enum.PathWaypointAction.Jump then Humanoid.Jump = true end
+    if firstWp then Humanoid:MoveTo(firstWp.Position) end
+end
+
+local function jukeChaser(chaserRoot)
+    if not Root then return end
+    local exit = GetExit()
+    if not exit then return end
+    isFleeing = true
+    local blockers = {}
+    local chaserPos = chaserRoot.Position
+    local offsets = {Vector3.new(0,0,0), Vector3.new(4,0,0), Vector3.new(-4,0,0), Vector3.new(0,0,4), Vector3.new(0,0,-4)}
+
+    for _, offset in ipairs(offsets) do
+        local blocker = Instance.new("Part")
+        blocker.Size = Vector3.new(4, 8, 4)
+        blocker.CFrame = CFrame.new(chaserPos + offset)
+        blocker.Anchored = true
+        blocker.Transparency = 1
+        blocker.CanQuery = false
+        blocker.Parent = workspace
+        table.insert(blockers, blocker)
+    end
+
+    task.wait(0.1)
+    followPath(exit.Position, 2)
+    task.delay(0.5, function()
+        for _, b in ipairs(blockers) do pcall(function() b:Destroy() end) end
+    end)
+    task.delay(5, function() if isFleeing then isFleeing = false end end)
+end
+
+--// LOOPS
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        if not Settings.Enabled or not Settings.AvoidChaser or not Root then continue end
+        local chaserRoot = GetChaser()
+        if not chaserRoot then continue end
+        local dist = (Root.Position - chaserRoot.Position).Magnitude
+        if dist <= Settings.ChaserFleeDistance and not isFleeing then
+            stopNav()
+            task.spawn(function() jukeChaser(chaserRoot) end)
+        elseif dist > Settings.ChaserFleeDistance + 10 and isFleeing then
+            isFleeing = false
+        end
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        if not Settings.Enabled or isNavigating or isFleeing then continue end
+        local exit = GetExit()
+        if exit and (Root.Position - exit.Position).Magnitude > 5 then
+            followPath(exit.Position)
+        end
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(0.3)
+        if Settings.Enabled then FireAura() end
+    end
+end)
+
+RunService.Heartbeat:Connect(function(dt)
+    if not Settings.Enabled or not Root or not Humanoid then return end
+    if Humanoid.WalkSpeed ~= Settings.WalkSpeed then Humanoid.WalkSpeed = Settings.WalkSpeed end
+
+    if isNavigating and nextWaypointIndex <= #allWaypoints then
+        local wp = allWaypoints[nextWaypointIndex]
+        if wp then
+            local dir = wp.Position - Root.Position
+            dir = Vector3.new(dir.X, 0, dir.Z)
+            if dir.Magnitude > 0.5 then
+                Root.CFrame = Root.CFrame:Lerp(CFrame.lookAt(Root.Position, Root.Position + dir), 0.15)
+            end
+        end
+    end
+
+    if not isNavigating or isFleeing then stuckTimer = 0 return end
+    if (Root.Position - lastStuckPos).Magnitude < 0.3 then stuckTimer += dt else stuckTimer = 0; lastStuckPos = Root.Position end
+
+    if stuckTimer >= 2.5 then
+        stuckTimer = 0
+        local exit = GetExit()
+        if not exit then return end
+        if freeAttempts < 2 then
+            stopNav(); followPath(exit.Position, 1.5)
+        elseif freeAttempts < 4 then
+            stopNav(); TryEscapeCorner(); followPath(exit.Position, 0.5)
+        else
+            nextWaypointIndex = math.min(nextWaypointIndex + 3, #allWaypoints)
+            freeAttempts = 0
+        end
+    end
+end)
+
+--// FLUENT UI SETUP
+local Window = Fluent:CreateWindow({
+    Title = "Sublevel Navigator",
+    SubTitle = "By Yamyum",
+    TabWidth = 160,
+    Size = UDim2.fromOffset(580, 460),
+    Acrylic = true,
+    Theme = "Dark",
+    MinimizeKey = Enum.KeyCode.LeftControl
+})
+
+local Tabs = {
+    Main = Window:AddTab({ Title = "Main", Icon = "home" })
+}
+
+local ToggleMain = Tabs.Main:AddToggle("AutoExit", {Title = "Auto Exit + Interact", Default = false })
+ToggleMain:OnChanged(function()
+    Settings.Enabled = ToggleMain.Value
+    if not Settings.Enabled then stopNav(); isFleeing = false end
+end)
+
+local ToggleChaser = Tabs.Main:AddToggle("AvoidChaser", {Title = "Avoid Chaser", Default = false })
+ToggleChaser:OnChanged(function()
+    Settings.AvoidChaser = ToggleChaser.Value
+    if not Settings.AvoidChaser then isFleeing = false end
+end)
+
+Tabs.Main:AddSlider("FleeDist", {
+    Title = "Chaser Flee Distance",
+    Description = "How far to stay away from the monster",
+    Default = Settings.ChaserFleeDistance,
+    Min = 10,
+    Max = 80,
+    Rounding = 0,
+    Callback = function(Value)
+        Settings.ChaserFleeDistance = Value
+    end
+})
+
+Tabs.Main:AddSlider("WS", {
+    Title = "WalkSpeed",
+    Default = Settings.WalkSpeed,
+    Min = 16,
+    Max = 120,
+    Rounding = 0,
+    Callback = function(Value)
+        Settings.WalkSpeed = Value
+    end
+})
+
+Tabs.Main:AddSlider("IntRadius", {
+    Title = "Interaction Radius",
+    Default = Settings.InteractionRadius,
+    Min = 10,
+    Max = 80,
+    Rounding = 0,
+    Callback = function(Value)
+        Settings.InteractionRadius = Value
+    end
+})
+
+Window:SelectTab(1)
+
+Fluent:Notify({
+    Title = "Script Loaded",
+    Content = "Sublevel Navigator is ready.",
+    Duration = 5
+})
