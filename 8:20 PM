@@ -1,5 +1,4 @@
 -- LocalScript
-
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -97,14 +96,9 @@ end
 -- ESP CORE 
 -- ============================================================
 
-local espTagged     = {}  -- [object] = { part, highlight }
-local espHighlights = {}  -- flat list of { part, highlight } for cleanup
-local espConnections = {}
-
 local function highlightObject(obj)
     if espTagged[obj] then return end
 
-    -- Get a position/size reference from the object
     local refPart = nil
     if obj:IsA("BasePart") then
         refPart = obj
@@ -113,7 +107,6 @@ local function highlightObject(obj)
     end
     if not refPart then return end
 
-    -- Create a ghost part that sits on top of the wraith object
     local ghost = Instance.new("Part")
     ghost.Name             = "WraithESP_Ghost"
     ghost.Size             = refPart.Size
@@ -123,21 +116,19 @@ local function highlightObject(obj)
     ghost.CanTouch         = false
     ghost.CanQuery         = false
     ghost.CastShadow       = false
-    ghost.Transparency     = 1          -- fully invisible part
+    ghost.Transparency     = 1
     ghost.Parent           = workspace
 
-    -- Highlight on the ghost — DepthMode = AlwaysOnTop so it shows through walls
     local h = Instance.new("Highlight")
     h.Name                 = "WraithESP"
     h.FillColor            = Color3.fromRGB(255, 80, 80)
-    h.FillTransparency     = 1          -- no fill, only outline
+    h.FillTransparency     = 1
     h.OutlineColor         = Color3.fromRGB(255, 80, 80)
     h.OutlineTransparency  = 0
-    h.DepthMode            = Enum.HighlightDepthMode.AlwaysOnTop  -- goes through walls
+    h.DepthMode            = Enum.HighlightDepthMode.AlwaysOnTop
     h.Adornee              = ghost
     h.Parent               = workspace
 
-    -- Track the original object so we can update ghost CFrame each frame
     espTagged[obj] = { ghost = ghost, highlight = h, ref = refPart }
     table.insert(espHighlights, espTagged[obj])
 end
@@ -151,23 +142,6 @@ local function scanContainer(container)
     if container:IsA("Model") or container:IsA("BasePart") then
         highlightObject(container)
     end
-end
-
-local function watchContainer(container)
-    local conn = container.DescendantAdded:Connect(function(obj)
-        if not espEnabled then return end
-        if obj:IsA("Model") or obj:IsA("BasePart") then
-            task.defer(function()
-                if espEnabled then
-                    highlightObject(obj)
-                    if wraithEnabled then
-                        pcall(function() obj:Destroy() end)
-                    end
-                end
-            end)
-        end
-    end)
-    table.insert(espConnections, conn)
 end
 
 local function clearESP()
@@ -184,17 +158,14 @@ local function clearESP()
     espTagged = {}
 end
 
--- Update ghost CFrames every Heartbeat so they follow moving wraith parts
 RunService.Heartbeat:Connect(function()
     if not espEnabled then return end
     for obj, entry in pairs(espTagged) do
-        -- If the original object was destroyed, clean up this entry
         if not entry.ref or not entry.ref.Parent then
             pcall(function() entry.highlight:Destroy() end)
             pcall(function() entry.ghost:Destroy() end)
             espTagged[obj] = nil
         else
-            -- Keep ghost snapped to the real part
             entry.ghost.CFrame = entry.ref.CFrame
         end
     end
@@ -391,7 +362,7 @@ VisionTab:CreateToggle({
 })
 
 -- ============================================================
--- UTILITY TAB
+-- UTILITY TAB (EXIT TAB)
 -- ============================================================
 
 UtilityTab:CreateSection("Teleport")
@@ -437,6 +408,16 @@ UtilityTab:CreateToggle({
     Flag = "AutoBeatAltExits",
     Callback = function(val)
         altPromptEnabled = val
+    end,
+})
+
+-- NEW SECTION ADDED FOR PATHFINDER
+UtilityTab:CreateSection("Pathfinder")
+
+UtilityTab:CreateButton({
+    Name = "Load Pathfinder",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Hardgitcore/Yourtrollingme-/refs/heads/main/Pathfinder"))()
     end,
 })
 
