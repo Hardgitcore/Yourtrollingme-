@@ -1,167 +1,316 @@
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
-local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
-local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
 
 local Players = game:GetService("Players")
 local PathfindingService = game:GetService("PathfindingService")
 local RunService = game:GetService("RunService")
 
 local lp = Players.LocalPlayer
-local Character, Humanoid, Root
+local Camera = workspace.CurrentCamera
 
+local Character
+local Humanoid
+local Root
+
+--// SETTINGS
 local Settings = {
     Enabled = false,
     WalkSpeed = 35,
     InteractionRadius = 35,
-    AvoidChaser = false,
-    ChaserFleeDistance = 30,
+
+    FireClickDetectors = false,
+    FirePrompts = false,
+
+    TargetMode = "Exit"
 }
 
+--// NAVIGATION
 local isNavigating = false
-local isFleeing = false
-local reachedConn, blockedConn
+
+local reachedConn
+local blockedConn
+
 local nextWaypointIndex = 1
 local allWaypoints = {}
+
 local stuckTimer = 0
 local lastStuckPos = Vector3.zero
-local freeAttempts = 0
+
+--// CUSTOM NAV
+local navSearchTerm = ""
+
+local navResults = {
+    "Scan to populate..."
+}
+
+local navPartMap = {}
+
+local selectedPart = nil
 
 --// CHARACTER SETUP
 local function SetupCharacter()
     Character = lp.Character or lp.CharacterAdded:Wait()
+
     Humanoid = Character:WaitForChild("Humanoid")
     Root = Character:WaitForChild("HumanoidRootPart")
-    Humanoid.WalkSpeed = Settings.WalkSpeed
-    isNavigating = false
-    isFleeing = false
+
+    Humanoid.Died:Connect(function()
+        isNavigating = false
+
+        pcall(function()
+            Camera.CameraType = Enum.CameraType.Custom
+        end)
+    end)
 end
 
 SetupCharacter()
+
 lp.CharacterAdded:Connect(function()
     task.wait(1)
     SetupCharacter()
 end)
 
---// LOGIC FUNCTIONS (Unchanged)
-local function GetChaser()
-    local sub = workspace:FindFirstChild("Sublevel")
-    if not sub then return nil end
-    local chaser = sub:FindFirstChild("Chaser")
-    if not chaser then return nil end
-    return chaser:FindFirstChild("HumanoidRootPart") or chaser:FindFirstChildWhichIsA("BasePart")
+--// CAMERA + ROTATION
+local function FaceDirection(targetPos)
+    if not Root then
+        return
+    end
+
+    local dir = targetPos - Root.Position
+    dir = Vector3.new(dir.X, 0, dir.Z)
+
+    if dir.Magnitude <= 0.1 then
+        return
+    end
+
+    local targetCF = CFrame.lookAt(
+        Root.Position,
+        Root.Position + dir
+    )
+
+    Root.CFrame = Root.CFrame:Lerp(
+        targetCF,
+        0.22
+    )
+
+    if Camera.CameraType ~= Enum.CameraType.Scriptable then
+        Camera.CameraType = Enum.CameraType.Scriptable
+    end
+
+    local camPos =
+        Root.Position
+        - dir.Unit * 14
+        + Vector3.new(0, 7, 0)
+
+    local camCF = CFrame.lookAt(
+        camPos,
+        Root.Position + dir * 8
+    )
+
+    Camera.CFrame = Camera.CFrame:Lerp(
+        camCF,
+        0.13
+    )
 end
 
+local function RestoreCamera()
+    pcall(function()
+        Camera.CameraType = Enum.CameraType.Custom
+    end)
+end
+
+--// EXIT
 local function GetExit()
     local sub = workspace:FindFirstChild("Sublevel")
-    if not sub then return nil end
+
+    if not sub then
+        return nil
+    end
+
     local exitFolder = sub:FindFirstChild("Exit")
-    if not exitFolder then return nil end
+
+    if not exitFolder then
+        return nil
+    end
+
     return exitFolder:FindFirstChild("exit")
 end
 
-local function FireAllClickDetectors()
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj:IsA("ClickDetector") then
-            task.spawn(function() pcall(function() fireclickdetector(obj) end) end)
-        end
-    end
-end
-
-local function FireAura()
-    if not Root then return end
-    FireAllClickDetectors()
-    for _, folderName in ipairs({"Sublevel", "Spawners"}) do
-        local folder = workspace:FindFirstChild(folderName)
-        if folder then
-            for _, obj in ipairs(folder:GetDescendants()) do
-                local part = obj.Parent
-                if part and part:IsA("BasePart") then
-                    local dist = (Root.Position - part.Position).Magnitude
-                    if dist <= Settings.InteractionRadius then
-                        if obj:IsA("ProximityPrompt") then
-                            task.spawn(function() pcall(function() fireproximityprompt(obj) end) end)
-                        end
-                    end
-                end
-            end
-        end
-    end
-end
-
+--// STOP NAV
 local function stopNav()
     isNavigating = false
-    if reachedConn then reachedConn:Disconnect(); reachedConn = nil end
-    if blockedConn then blockedConn:Disconnect(); blockedConn = nil end
+
+    if reachedConn then
+        reachedConn:Disconnect()
+        reachedConn = nil
+    end
+
+    if blockedConn then
+        blockedConn:Disconnect()
+        blockedConn = nil
+    end
+
     allWaypoints = {}
     nextWaypointIndex = 1
+
+    RestoreCamera()
 end
 
-local function TryEscapeCorner()
-    if not Root or not Humanoid then return end
-    Humanoid.Jump = true
-    task.wait(0.3)
+--// WALL DETECTION
+local function GetWallPressure()
+    if not Root then
+        return Vector3.zero, 0
+    end
+
     local params = RaycastParams.new()
+
     params.FilterType = Enum.RaycastFilterType.Exclude
     params.FilterDescendantsInstances = {Character}
-    local dirs = {Vector3.new(1,0,0), Vector3.new(-1,0,0), Vector3.new(0,0,1), Vector3.new(0,0,-1)}
-    local bestDir, bestDist = nil, 0
+
+    local dirs = {
+        Vector3.new(1,0,0),
+        Vector3.new(-1,0,0),
+        Vector3.new(0,0,1),
+        Vector3.new(0,0,-1),
+
+        Vector3.new(1,0,1).Unit,
+        Vector3.new(-1,0,1).Unit,
+        Vector3.new(1,0,-1).Unit,
+        Vector3.new(-1,0,-1).Unit
+    }
+
+    local pressure = Vector3.zero
+    local count = 0
+
     for _, dir in ipairs(dirs) do
-        local result = workspace:Raycast(Root.Position, dir * 10, params)
-        local dist = result and result.Distance or 10
-        if dist > bestDist then bestDist = dist; bestDir = dir end
-    end
-    if bestDir then
-        for i = 1, 8 do
-            if not Settings.Enabled then break end
-            Root.CFrame = Root.CFrame + (bestDir * 1.2)
-            task.wait(0.05)
+        local result = workspace:Raycast(
+            Root.Position,
+            dir * 4,
+            params
+        )
+
+        if result then
+            pressure += (-dir * (4 - result.Distance))
+            count += 1
         end
     end
-    freeAttempts += 1
+
+    return pressure, count
 end
 
-local function followPath(destination, agentRadius)
-    if not Root or not Humanoid then return end
-    agentRadius = agentRadius or 2
+--// ANTI STUCK
+local function FreeFromWall()
+    if not Root or not Humanoid then
+        return
+    end
+
+    Humanoid.Jump = true
+
+    local pressure = GetWallPressure()
+
+    local push = pressure
+
+    if typeof(pressure) == "table" then
+        push = pressure[1]
+    end
+
+    if push.Magnitude > 0.1 then
+        push = Vector3.new(
+            push.X,
+            0,
+            push.Z
+        ).Unit
+
+        FaceDirection(
+            Root.Position + push * 10
+        )
+
+        for i = 1, 12 do
+            Root.CFrame += push * 1.15
+            task.wait(0.03)
+        end
+    else
+        local backwards =
+            -Root.CFrame.LookVector
+
+        for i = 1, 8 do
+            Root.CFrame += backwards
+            task.wait(0.03)
+        end
+    end
+end
+
+--// PATHFIND
+local function followPath(destination)
+    if not Root or not Humanoid then
+        return
+    end
+
     stopNav()
+
     isNavigating = true
-    freeAttempts = 0
-    stuckTimer = 0
-    lastStuckPos = Root.Position
 
     local path = PathfindingService:CreatePath({
-        AgentRadius = agentRadius,
+        AgentRadius = 2.4,
         AgentHeight = 5,
         AgentCanJump = true,
         AgentCanClimb = true,
-        WaypointSpacing = 5,
+        WaypointSpacing = 4
     })
 
-    local ok = pcall(function() path:ComputeAsync(Root.Position, destination) end)
-    if not ok or path.Status ~= Enum.PathStatus.Success then
+    local success = pcall(function()
+        path:ComputeAsync(
+            Root.Position,
+            destination
+        )
+    end)
+
+    if not success
+        or path.Status ~= Enum.PathStatus.Success
+    then
         isNavigating = false
+
         Humanoid:MoveTo(destination)
+
         return
     end
 
     allWaypoints = path:GetWaypoints()
-    if #allWaypoints < 2 then isNavigating = false; return end
 
-    blockedConn = path.Blocked:Connect(function(blockedIdx)
-        if blockedIdx >= nextWaypointIndex then
-            local newRadius = math.max(agentRadius - 0.25, 0.5)
+    if #allWaypoints < 2 then
+        stopNav()
+        return
+    end
+
+    blockedConn = path.Blocked:Connect(function(idx)
+        if idx >= nextWaypointIndex then
             stopNav()
-            task.wait(0.1)
-            followPath(destination, newRadius)
+
+            task.wait(0.2)
+
+            followPath(destination)
         end
     end)
 
     reachedConn = Humanoid.MoveToFinished:Connect(function(reached)
-        if not Settings.Enabled then stopNav(); return end
-        if reached and nextWaypointIndex < #allWaypoints then
+        if not Settings.Enabled then
+            stopNav()
+            return
+        end
+
+        if reached
+            and nextWaypointIndex < #allWaypoints
+        then
             nextWaypointIndex += 1
-            local wp = allWaypoints[nextWaypointIndex]
-            if wp.Action == Enum.PathWaypointAction.Jump then Humanoid.Jump = true end
+
+            local wp =
+                allWaypoints[nextWaypointIndex]
+
+            if wp.Action
+                == Enum.PathWaypointAction.Jump
+            then
+                Humanoid.Jump = true
+            end
+
             Humanoid:MoveTo(wp.Position)
         else
             stopNav()
@@ -169,172 +318,348 @@ local function followPath(destination, agentRadius)
     end)
 
     nextWaypointIndex = 2
-    local firstWp = allWaypoints[nextWaypointIndex]
-    if firstWp and firstWp.Action == Enum.PathWaypointAction.Jump then Humanoid.Jump = true end
-    if firstWp then Humanoid:MoveTo(firstWp.Position) end
+
+    local first =
+        allWaypoints[nextWaypointIndex]
+
+    if first then
+        Humanoid:MoveTo(first.Position)
+    end
 end
 
-local function jukeChaser(chaserRoot)
-    if not Root then return end
-    local exit = GetExit()
-    if not exit then return end
-    isFleeing = true
-    local blockers = {}
-    local chaserPos = chaserRoot.Position
-    local offsets = {Vector3.new(0,0,0), Vector3.new(4,0,0), Vector3.new(-4,0,0), Vector3.new(0,0,4), Vector3.new(0,0,-4)}
-
-    for _, offset in ipairs(offsets) do
-        local blocker = Instance.new("Part")
-        blocker.Size = Vector3.new(4, 8, 4)
-        blocker.CFrame = CFrame.new(chaserPos + offset)
-        blocker.Anchored = true
-        blocker.Transparency = 1
-        blocker.CanQuery = false
-        blocker.Parent = workspace
-        table.insert(blockers, blocker)
+--// INTERACT
+local function FireAura()
+    if not Root then
+        return
     end
 
-    task.wait(0.1)
-    followPath(exit.Position, 2)
-    task.delay(0.5, function()
-        for _, b in ipairs(blockers) do pcall(function() b:Destroy() end) end
-    end)
-    task.delay(5, function() if isFleeing then isFleeing = false end end)
-end
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        pcall(function()
 
---// LOOPS
-task.spawn(function()
-    while true do
-        task.wait(0.5)
-        if not Settings.Enabled or not Settings.AvoidChaser or not Root then continue end
-        local chaserRoot = GetChaser()
-        if not chaserRoot then continue end
-        local dist = (Root.Position - chaserRoot.Position).Magnitude
-        if dist <= Settings.ChaserFleeDistance and not isFleeing then
-            stopNav()
-            task.spawn(function() jukeChaser(chaserRoot) end)
-        elseif dist > Settings.ChaserFleeDistance + 10 and isFleeing then
-            isFleeing = false
-        end
-    end
-end)
-
-task.spawn(function()
-    while true do
-        task.wait(0.5)
-        if not Settings.Enabled or isNavigating or isFleeing then continue end
-        local exit = GetExit()
-        if exit and (Root.Position - exit.Position).Magnitude > 5 then
-            followPath(exit.Position)
-        end
-    end
-end)
-
-task.spawn(function()
-    while true do
-        task.wait(0.3)
-        if Settings.Enabled then FireAura() end
-    end
-end)
-
-RunService.Heartbeat:Connect(function(dt)
-    if not Settings.Enabled or not Root or not Humanoid then return end
-    if Humanoid.WalkSpeed ~= Settings.WalkSpeed then Humanoid.WalkSpeed = Settings.WalkSpeed end
-
-    if isNavigating and nextWaypointIndex <= #allWaypoints then
-        local wp = allWaypoints[nextWaypointIndex]
-        if wp then
-            local dir = wp.Position - Root.Position
-            dir = Vector3.new(dir.X, 0, dir.Z)
-            if dir.Magnitude > 0.5 then
-                Root.CFrame = Root.CFrame:Lerp(CFrame.lookAt(Root.Position, Root.Position + dir), 0.15)
+            -- CLICK DETECTORS
+            if Settings.FireClickDetectors
+                and obj:IsA("ClickDetector")
+            then
+                fireclickdetector(obj)
             end
-        end
+
+            -- PROXIMITY PROMPTS
+            if Settings.FirePrompts
+                and obj:IsA("ProximityPrompt")
+            then
+                local parent = obj.Parent
+
+                if parent
+                    and parent:IsA("BasePart")
+                then
+                    local dist =
+                        (Root.Position - parent.Position).Magnitude
+
+                    if dist <= Settings.InteractionRadius then
+                        fireproximityprompt(obj)
+                    end
+                end
+            end
+
+        end)
     end
+end
 
-    if not isNavigating or isFleeing then stuckTimer = 0 return end
-    if (Root.Position - lastStuckPos).Magnitude < 0.3 then stuckTimer += dt else stuckTimer = 0; lastStuckPos = Root.Position end
-
-    if stuckTimer >= 2.5 then
-        stuckTimer = 0
-        local exit = GetExit()
-        if not exit then return end
-        if freeAttempts < 2 then
-            stopNav(); followPath(exit.Position, 1.5)
-        elseif freeAttempts < 4 then
-            stopNav(); TryEscapeCorner(); followPath(exit.Position, 0.5)
-        else
-            nextWaypointIndex = math.min(nextWaypointIndex + 3, #allWaypoints)
-            freeAttempts = 0
-        end
-    end
-end)
-
---// FLUENT UI SETUP
+--// WINDOW
 local Window = Fluent:CreateWindow({
-    Title = "Sublevel Navigator",
-    SubTitle = "By Yamyum",
-    TabWidth = 160,
-    Size = UDim2.fromOffset(580, 460),
+    Title = "Pathfinder",
+    SubTitle = "Rewritten",
+    TabWidth = 150,
+    Size = UDim2.fromOffset(590, 500),
     Acrylic = true,
     Theme = "Dark",
     MinimizeKey = Enum.KeyCode.LeftControl
 })
 
 local Tabs = {
-    Main = Window:AddTab({ Title = "Main", Icon = "home" })
+    Main = Window:AddTab({
+        Title = "Main",
+        Icon = "home"
+    }),
+
+    Settings = Window:AddTab({
+        Title = "Settings",
+        Icon = "settings"
+    })
 }
 
-local ToggleMain = Tabs.Main:AddToggle("AutoExit", {Title = "Auto Exit + Interact", Default = false })
-ToggleMain:OnChanged(function()
-    Settings.Enabled = ToggleMain.Value
-    if not Settings.Enabled then stopNav(); isFleeing = false end
+--// MAIN
+Tabs.Main:AddSection("Automation")
+
+local AutoToggle =
+    Tabs.Main:AddToggle("AutoNav", {
+        Title = "Auto Navigation",
+        Default = false
+    })
+
+AutoToggle:OnChanged(function(v)
+    Settings.Enabled = v
+
+    if not v then
+        stopNav()
+    end
 end)
 
-local ToggleChaser = Tabs.Main:AddToggle("AvoidChaser", {Title = "Avoid Chaser", Default = false })
-ToggleChaser:OnChanged(function()
-    Settings.AvoidChaser = ToggleChaser.Value
-    if not Settings.AvoidChaser then isFleeing = false end
-end)
+Tabs.Main:AddDropdown("TargetMode", {
+    Title = "Navigation Target",
 
-Tabs.Main:AddSlider("FleeDist", {
-    Title = "Chaser Flee Distance",
-    Description = "How far to stay away from the monster",
-    Default = Settings.ChaserFleeDistance,
-    Min = 10,
-    Max = 80,
-    Rounding = 0,
-    Callback = function(Value)
-        Settings.ChaserFleeDistance = Value
+    Values = {
+        "Exit",
+        "Custom Target"
+    },
+
+    Default = "Exit",
+
+    Callback = function(v)
+        Settings.TargetMode = v
     end
 })
 
-Tabs.Main:AddSlider("WS", {
+Tabs.Main:AddSection("Custom Target")
+
+Tabs.Main:AddInput("Search", {
+    Title = "Search Workspace",
+    Placeholder = "Part name...",
+
+    Callback = function(v)
+        navSearchTerm = v
+    end
+})
+
+local ResultsDropdown =
+    Tabs.Main:AddDropdown("Results", {
+        Title = "Found Parts",
+
+        Values = {
+            "Scan to populate..."
+        },
+
+        Default = "Scan to populate...",
+
+        Callback = function(v)
+            selectedPart = navPartMap[v]
+        end
+    })
+
+Tabs.Main:AddButton({
+    Title = "Scan Workspace",
+
+    Callback = function()
+        navResults = {}
+        navPartMap = {}
+
+        local search =
+            string.lower(navSearchTerm or "")
+
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            if obj:IsA("BasePart") then
+
+                local lower =
+                    string.lower(obj.Name)
+
+                if search == ""
+                    or string.find(
+                        lower,
+                        search,
+                        1,
+                        true
+                    )
+                then
+                    local label =
+                        obj.Name ..
+                        " [" ..
+                        (obj.Parent and obj.Parent.Name or "workspace")
+                        .. "]"
+
+                    table.insert(
+                        navResults,
+                        label
+                    )
+
+                    navPartMap[label] = obj
+
+                    if #navResults >= 80 then
+                        break
+                    end
+                end
+            end
+        end
+
+        if #navResults <= 0 then
+            navResults = {
+                "No Results"
+            }
+        end
+
+        ResultsDropdown:SetValues(navResults)
+    end
+})
+
+--// SETTINGS
+Tabs.Settings:AddSlider("WalkSpeed", {
     Title = "WalkSpeed",
-    Default = Settings.WalkSpeed,
+    Default = 35,
     Min = 16,
     Max = 120,
     Rounding = 0,
-    Callback = function(Value)
-        Settings.WalkSpeed = Value
+
+    Callback = function(v)
+        Settings.WalkSpeed = v
     end
 })
 
-Tabs.Main:AddSlider("IntRadius", {
+Tabs.Settings:AddSlider("InteractionRadius", {
     Title = "Interaction Radius",
-    Default = Settings.InteractionRadius,
-    Min = 10,
-    Max = 80,
+    Default = 35,
+    Min = 5,
+    Max = 100,
     Rounding = 0,
-    Callback = function(Value)
-        Settings.InteractionRadius = Value
+
+    Callback = function(v)
+        Settings.InteractionRadius = v
     end
 })
+
+Tabs.Settings:AddToggle("FireCD", {
+    Title = "Fire ClickDetectors",
+    Default = false
+}):OnChanged(function(v)
+    Settings.FireClickDetectors = v
+end)
+
+Tabs.Settings:AddToggle("FirePP", {
+    Title = "Fire ProximityPrompts",
+    Default = false
+}):OnChanged(function(v)
+    Settings.FirePrompts = v
+end)
+
+--// NAV LOOP
+task.spawn(function()
+    while true do
+        task.wait(0.45)
+
+        if not Settings.Enabled
+            or isNavigating
+            or not Root
+        then
+            continue
+        end
+
+        local targetPos = nil
+
+        -- EXIT
+        if Settings.TargetMode == "Exit" then
+            local exit = GetExit()
+
+            if exit then
+                targetPos = exit.Position
+            end
+
+        -- CUSTOM
+        elseif selectedPart then
+            targetPos = selectedPart.Position
+        end
+
+        if targetPos then
+            if (Root.Position - targetPos).Magnitude > 5 then
+                followPath(targetPos)
+            else
+                if Settings.TargetMode == "Custom Target" then
+                    Fluent:Notify({
+                        Title = "Arrived",
+                        Content = "Target reached.",
+                        Duration = 3
+                    })
+
+                    AutoToggle:SetValue(false)
+                end
+            end
+        end
+    end
+end)
+
+--// HEARTBEAT
+RunService.Heartbeat:Connect(function(dt)
+    if not Settings.Enabled
+        or not Root
+        or not Humanoid
+    then
+        return
+    end
+
+    if Humanoid.WalkSpeed ~= Settings.WalkSpeed then
+        Humanoid.WalkSpeed = Settings.WalkSpeed
+    end
+
+    -- FACE WAYPOINT
+    if isNavigating
+        and allWaypoints[nextWaypointIndex]
+    then
+        FaceDirection(
+            allWaypoints[nextWaypointIndex].Position
+        )
+    end
+
+    -- PASSIVE WALL PUSH
+    local pressure, count =
+        GetWallPressure()
+
+    if count >= 3
+        and pressure.Magnitude > 0.1
+    then
+        local nudge =
+            Vector3.new(
+                pressure.X,
+                0,
+                pressure.Z
+            ).Unit * 0.35
+
+        Root.CFrame += nudge
+    end
+
+    -- STUCK DETECTION
+    if isNavigating then
+        local moved =
+            (Root.Position - lastStuckPos).Magnitude
+
+        if moved < 0.4 then
+            stuckTimer += dt
+
+            if stuckTimer >= 2 then
+                stuckTimer = 0
+
+                FreeFromWall()
+
+                stopNav()
+            end
+        else
+            stuckTimer = 0
+            lastStuckPos = Root.Position
+        end
+    end
+end)
+
+--// INTERACTION LOOP
+task.spawn(function()
+    while true do
+        task.wait(0.3)
+
+        if Settings.Enabled then
+            FireAura()
+        end
+    end
+end)
 
 Window:SelectTab(1)
 
 Fluent:Notify({
-    Title = "Script Loaded",
-    Content = "Sublevel Navigator is ready.",
+    Title = "Loaded",
+    Content = "Navigator initialized.",
     Duration = 5
 })
