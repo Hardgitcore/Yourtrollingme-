@@ -1,0 +1,379 @@
+-- Host and Admin Abuse Script GUI by YamYum
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local target = workspace.obby.Hard.CLAIMPLATFORM_stage110
+
+local active = false
+local loopConnection = nil
+local teleportCount = 0
+local startTime = 0
+
+-- ============================================================
+-- GUI SETUP
+-- ============================================================
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "YamYumGUI"
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.Parent = player.PlayerGui
+
+-- Main Frame
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 280, 0, 220)
+mainFrame.Position = UDim2.new(0.5, -140, 0.5, -110)
+mainFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 20)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 6)
+mainCorner.Parent = mainFrame
+
+local mainStroke = Instance.new("UIStroke")
+mainStroke.Color = Color3.fromRGB(0, 200, 140)
+mainStroke.Thickness = 1
+mainStroke.Transparency = 0.6
+mainStroke.Parent = mainFrame
+
+-- Glow effect (ImageLabel behind frame)
+local glow = Instance.new("ImageLabel")
+glow.Size = UDim2.new(1, 60, 1, 60)
+glow.Position = UDim2.new(0, -30, 0, -30)
+glow.BackgroundTransparency = 1
+glow.Image = "rbxassetid://5028857084"
+glow.ImageColor3 = Color3.fromRGB(0, 255, 180)
+glow.ImageTransparency = 0.85
+glow.ScaleType = Enum.ScaleType.Slice
+glow.SliceCenter = Rect.new(24, 24, 276, 276)
+glow.ZIndex = 0
+glow.Parent = mainFrame
+
+-- Title Bar
+local titleBar = Instance.new("Frame")
+titleBar.Name = "TitleBar"
+titleBar.Size = UDim2.new(1, 0, 0, 36)
+titleBar.BackgroundColor3 = Color3.fromRGB(0, 180, 120)
+titleBar.BackgroundTransparency = 0.85
+titleBar.BorderSizePixel = 0
+titleBar.Parent = mainFrame
+
+local titleCorner = Instance.new("UICorner")
+titleCorner.CornerRadius = UDim.new(0, 6)
+titleCorner.Parent = titleBar
+
+-- Fix bottom corners of title bar
+local titleFix = Instance.new("Frame")
+titleFix.Size = UDim2.new(1, 0, 0.5, 0)
+titleFix.Position = UDim2.new(0, 0, 0.5, 0)
+titleFix.BackgroundColor3 = Color3.fromRGB(0, 180, 120)
+titleFix.BackgroundTransparency = 0.85
+titleFix.BorderSizePixel = 0
+titleFix.Parent = titleBar
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, -40, 1, 0)
+titleLabel.Position = UDim2.new(0, 12, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "⚡ HOST & ADMIN ABUSE"
+titleLabel.TextColor3 = Color3.fromRGB(0, 255, 180)
+titleLabel.TextSize = 11
+titleLabel.Font = Enum.Font.Code
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.Parent = titleBar
+
+local authorLabel = Instance.new("TextLabel")
+authorLabel.Size = UDim2.new(1, -12, 0, 14)
+authorLabel.Position = UDim2.new(0, 12, 0, 36)
+authorLabel.BackgroundTransparency = 1
+authorLabel.Text = "by YamYum  //  PointGivers :: Nightmare"
+authorLabel.TextColor3 = Color3.fromRGB(0, 180, 120)
+authorLabel.TextSize = 9
+authorLabel.Font = Enum.Font.Code
+authorLabel.TextXAlignment = Enum.TextXAlignment.Left
+authorLabel.Parent = mainFrame
+
+-- Close Button
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0, 20, 0, 20)
+closeBtn.Position = UDim2.new(1, -26, 0, 8)
+closeBtn.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+closeBtn.BackgroundTransparency = 0.3
+closeBtn.BorderSizePixel = 0
+closeBtn.Text = "✕"
+closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.TextSize = 10
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.Parent = mainFrame
+
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(1, 0)
+closeCorner.Parent = closeBtn
+
+-- Status Label
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(1, -24, 0, 20)
+statusLabel.Position = UDim2.new(0, 12, 0, 60)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = "STATUS: INACTIVE"
+statusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+statusLabel.TextSize = 10
+statusLabel.Font = Enum.Font.Code
+statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+statusLabel.Parent = mainFrame
+
+-- Stats Label
+local statsLabel = Instance.new("TextLabel")
+statsLabel.Size = UDim2.new(1, -24, 0, 16)
+statsLabel.Position = UDim2.new(0, 12, 0, 80)
+statsLabel.BackgroundTransparency = 1
+statsLabel.Text = "TELEPORTS: 0  |  TIME: 0s"
+statsLabel.TextColor3 = Color3.fromRGB(0, 160, 100)
+statsLabel.TextSize = 9
+statsLabel.Font = Enum.Font.Code
+statsLabel.TextXAlignment = Enum.TextXAlignment.Left
+statsLabel.Parent = mainFrame
+
+-- Divider
+local divider = Instance.new("Frame")
+divider.Size = UDim2.new(1, -24, 0, 1)
+divider.Position = UDim2.new(0, 12, 0, 102)
+divider.BackgroundColor3 = Color3.fromRGB(0, 255, 180)
+divider.BackgroundTransparency = 0.8
+divider.BorderSizePixel = 0
+divider.Parent = mainFrame
+
+-- Toggle Button
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Name = "ToggleBtn"
+toggleBtn.Size = UDim2.new(1, -24, 0, 44)
+toggleBtn.Position = UDim2.new(0, 12, 0, 112)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(0, 160, 100)
+toggleBtn.BackgroundTransparency = 0.7
+toggleBtn.BorderSizePixel = 0
+toggleBtn.Text = "▶  EXECUTE SCRIPT"
+toggleBtn.TextColor3 = Color3.fromRGB(0, 255, 180)
+toggleBtn.TextSize = 13
+toggleBtn.Font = Enum.Font.Code
+toggleBtn.Parent = mainFrame
+
+local toggleCorner = Instance.new("UICorner")
+toggleCorner.CornerRadius = UDim.new(0, 4)
+toggleCorner.Parent = toggleBtn
+
+local toggleStroke = Instance.new("UIStroke")
+toggleStroke.Color = Color3.fromRGB(0, 255, 180)
+toggleStroke.Thickness = 1
+toggleStroke.Transparency = 0.5
+toggleStroke.Parent = toggleBtn
+
+-- Log Label
+local logLabel = Instance.new("TextLabel")
+logLabel.Size = UDim2.new(1, -24, 0, 40)
+logLabel.Position = UDim2.new(0, 12, 0, 166)
+logLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+logLabel.BackgroundTransparency = 0.5
+logLabel.BorderSizePixel = 0
+logLabel.Text = "> console ready..."
+logLabel.TextColor3 = Color3.fromRGB(0, 180, 120)
+logLabel.TextSize = 8
+logLabel.Font = Enum.Font.Code
+logLabel.TextXAlignment = Enum.TextXAlignment.Left
+logLabel.TextYAlignment = Enum.TextYAlignment.Top
+logLabel.TextWrapped = true
+logLabel.Parent = mainFrame
+
+local logCorner = Instance.new("UICorner")
+logCorner.CornerRadius = UDim.new(0, 3)
+logCorner.Parent = logLabel
+
+-- Padding inside log
+local logPad = Instance.new("UIPadding")
+logPad.PaddingLeft = UDim.new(0, 6)
+logPad.PaddingTop = UDim.new(0, 4)
+logPad.Parent = logLabel
+
+-- ============================================================
+-- ANIMATIONS & LOGIC
+-- ============================================================
+
+local tweenInfo = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+local function setLog(msg)
+    logLabel.Text = "> " .. msg
+end
+
+local function flashBtn()
+    -- Quick flash white then back
+    local flash = TweenService:Create(toggleBtn, TweenInfo.new(0.08), {
+        BackgroundColor3 = Color3.fromRGB(0, 255, 180),
+        BackgroundTransparency = 0.1
+    })
+    flash:Play()
+    flash.Completed:Connect(function()
+        if active then
+            TweenService:Create(toggleBtn, TweenInfo.new(0.2), {
+                BackgroundColor3 = Color3.fromRGB(0, 60, 40),
+                BackgroundTransparency = 0.2
+            }):Play()
+        else
+            TweenService:Create(toggleBtn, TweenInfo.new(0.2), {
+                BackgroundColor3 = Color3.fromRGB(0, 160, 100),
+                BackgroundTransparency = 0.7
+            }):Play()
+        end
+    end)
+end
+
+-- Pulse the stroke glow when active
+local pulseActive = false
+local function startPulse()
+    pulseActive = true
+    task.spawn(function()
+        while pulseActive do
+            TweenService:Create(mainStroke, TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+                Transparency = 0.1
+            }):Play()
+            task.wait(0.8)
+            if not pulseActive then break end
+            TweenService:Create(mainStroke, TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+                Transparency = 0.6
+            }):Play()
+            task.wait(0.8)
+        end
+    end)
+end
+
+local function stopPulse()
+    pulseActive = false
+    TweenService:Create(mainStroke, TweenInfo.new(0.3), { Transparency = 0.6 }):Play()
+end
+
+local function updateStats()
+    if active and startTime > 0 then
+        local elapsed = math.floor(tick() - startTime)
+        statsLabel.Text = string.format("TELEPORTS: %d  |  TIME: %ds", teleportCount, elapsed)
+    end
+end
+
+local function startScript()
+    active = true
+    teleportCount = 0
+    startTime = tick()
+
+    -- Update UI
+    toggleBtn.Text = "■  TERMINATE SCRIPT"
+    TweenService:Create(toggleBtn, tweenInfo, {
+        BackgroundColor3 = Color3.fromRGB(0, 60, 40),
+        BackgroundTransparency = 0.2
+    }):Play()
+    TweenService:Create(toggleStroke, tweenInfo, { Transparency = 0.0 }):Play()
+
+    statusLabel.Text = "STATUS: ACTIVE ●"
+    TweenService:Create(statusLabel, tweenInfo, {
+        TextColor3 = Color3.fromRGB(0, 255, 180)
+    }):Play()
+
+    setLog("Script injected — looping at 0.15s")
+    startPulse()
+
+    -- Stats updater
+    local statsConn
+    statsConn = RunService.Heartbeat:Connect(function()
+        if not active then
+            statsConn:Disconnect()
+            return
+        end
+        updateStats()
+    end)
+
+    -- Main loop
+    loopConnection = task.spawn(function()
+        while active do
+            local character = player.Character or player.CharacterAdded:Wait()
+            local hrp = character:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                hrp.CFrame = target.CFrame + Vector3.new(0, 20, 0)
+                teleportCount += 1
+            end
+            task.wait(0.15)
+        end
+    end)
+end
+
+local function stopScript()
+    active = false
+    loopConnection = nil
+
+    -- Update UI
+    toggleBtn.Text = "▶  EXECUTE SCRIPT"
+    TweenService:Create(toggleBtn, tweenInfo, {
+        BackgroundColor3 = Color3.fromRGB(0, 160, 100),
+        BackgroundTransparency = 0.7
+    }):Play()
+    TweenService:Create(toggleStroke, tweenInfo, { Transparency = 0.5 }):Play()
+
+    statusLabel.Text = "STATUS: INACTIVE"
+    TweenService:Create(statusLabel, tweenInfo, {
+        TextColor3 = Color3.fromRGB(255, 80, 80)
+    }):Play()
+
+    setLog(string.format("Stopped. %d teleports completed.", teleportCount))
+    stopPulse()
+end
+
+-- ============================================================
+-- BUTTON CONNECTIONS
+-- ============================================================
+
+toggleBtn.MouseButton1Click:Connect(function()
+    flashBtn()
+    if active then
+        stopScript()
+    else
+        startScript()
+    end
+end)
+
+closeBtn.MouseButton1Click:Connect(function()
+    if active then stopScript() end
+    TweenService:Create(mainFrame, TweenInfo.new(0.2), {
+        Size = UDim2.new(0, 0, 0, 0),
+        Position = UDim2.new(0.5, 0, 0.5, 0),
+        BackgroundTransparency = 1
+    }):Play()
+    task.delay(0.25, function() screenGui:Destroy() end)
+end)
+
+-- Hover effects
+toggleBtn.MouseEnter:Connect(function()
+    if not active then
+        TweenService:Create(toggleBtn, TweenInfo.new(0.15), {
+            BackgroundTransparency = 0.5
+        }):Play()
+    end
+end)
+toggleBtn.MouseLeave:Connect(function()
+    if not active then
+        TweenService:Create(toggleBtn, TweenInfo.new(0.15), {
+            BackgroundTransparency = 0.7
+        }):Play()
+    end
+end)
+
+-- Animate in on load
+mainFrame.Size = UDim2.new(0, 0, 0, 0)
+mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+mainFrame.BackgroundTransparency = 1
+TweenService:Create(mainFrame, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+    Size = UDim2.new(0, 280, 0, 220),
+    Position = UDim2.new(0.5, -140, 0.5, -110),
+    BackgroundTransparency = 0
+}):Play()
