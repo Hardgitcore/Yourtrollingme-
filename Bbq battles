@@ -10,7 +10,7 @@ local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
 local Window = Rayfield:CreateWindow({
     Name = "BBQ Hub",
-    LoadingTitle = "Bake n eat",
+    LoadingTitle = "I have been banned from scriptblox for apparently malicious script? Ggs 😔",
     LoadingSubtitle = "YummersYam",
     Theme = "Amethyst",
     DisableRayfieldPrompts = true,
