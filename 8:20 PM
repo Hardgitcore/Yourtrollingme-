@@ -258,7 +258,7 @@ end
 local Window = Rayfield:CreateWindow({
     Name = "PM Hub  v1.4",
     LoadingTitle = "PM Hub",
-    LoadingSubtitle = "8:20pm bad gaem trust 😔🥀",
+    LoadingSubtitle = "I have been banned from scriptblox for apparently malicious script? Ggs 😔",
     ConfigurationSaving = { Enabled = false },
     Discord = { Enabled = false },
     KeySystem = false
