@@ -1,0 +1,132 @@
+local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+
+local request = (syn and syn.request) or http_request or request
+local CurrentPlayer = nil
+local GlobalData = nil 
+
+local Window = Rayfield:CreateWindow({
+    Name = "Advanced Player Search",
+    LoadingTitle = "Loading Data...",
+    LoadingSubtitle = "Just for fun!",
+    ConfigurationSaving = { Enabled = false }
+})
+
+local ServerTab = Window:CreateTab("Server Players", 4483362458)
+local GlobalTab = Window:CreateTab("Global Search", 4483362458)
+
+-- --- HELPER FUNCTIONS ---
+local function GetStats(UserId)
+    local FollowerRes = request({Url = "https://friends.roblox.com/v1/users/"..UserId.."/followers/count", Method = "GET"})
+    local FriendRes = request({Url = "https://friends.roblox.com/v1/users/"..UserId.."/friends/count", Method = "GET"})
+    local Followers = (FollowerRes and FollowerRes.Body and HttpService:JSONDecode(FollowerRes.Body).count) or 0
+    local Friends = (FriendRes and FriendRes.Body and HttpService:JSONDecode(FriendRes.Body).count) or 0
+    return Followers, Friends
+end
+
+local function GetUserDetails(UserId)
+    local Res = request({Url = "https://users.roblox.com/v1/users/"..UserId, Method = "GET"})
+    local Success, Data = pcall(function() return HttpService:JSONDecode(Res.Body) end)
+    if not Success then return "N/A", "Unknown", "N/A" end
+    local Bio = (Data.description and Data.description ~= "") and Data.description or "No description."
+    local JoinDate = Data.created and string.sub(Data.created, 1, 10) or "Unknown"
+    local DisplayName = Data.displayName or "N/A"
+    return Bio, JoinDate, DisplayName
+end
+
+local function GetPresenceAndGame(UserId)
+    local Res = request({Url = "https://presence.roblox.com/v1/presence/users", Method = "POST", Body = HttpService:JSONEncode({userIds = {UserId}})})
+    local Success, Decoded = pcall(function() return HttpService:JSONDecode(Res.Body) end)
+    if not Success or not Decoded or not Decoded.userPresences then return nil, "Unknown" end
+    local Data = Decoded.userPresences[1]
+    local GameName = "Not Playing"
+    if Data and Data.placeId and Data.placeId ~= 0 then
+        local GameRes = request({Url = "https://games.roblox.com/v1/games/multiget-place-details?placeIds="..Data.placeId, Method = "GET"})
+        local GameData = HttpService:JSONDecode(GameRes.Body)
+        if GameData and GameData[1] then GameName = GameData[1].name end
+    end
+    return Data, GameName
+end
+
+local function FormatData(Name, Display, Id, Joined, Followers, Friends, Game, Bio, JobId)
+    return "Username: " .. tostring(Name) .. 
+           "\nDisplay: " .. tostring(Display) ..
+           "\nUser ID: " .. tostring(Id) ..
+           "\nJoined: " .. Joined ..
+           "\nFollowers: " .. tostring(Followers) .. 
+           "\nFriends: " .. tostring(Friends) ..
+           "\nPlaying: " .. tostring(Game) ..
+           "\nJob ID: " .. tostring(JobId) ..
+           "\nBio: " .. Bio
+end
+
+-- --- SERVER TAB ---
+local PlayerDropdown = ServerTab:CreateDropdown({
+    Name = "Select Player",
+    Options = {"Refresh to load"},
+    Callback = function(Option)
+        local PlayerName = (typeof(Option) == "table" and Option[1]) or tostring(Option)
+        CurrentPlayer = Players:FindFirstChild(PlayerName)
+    end
+})
+
+ServerTab:CreateButton({ Name = "Refresh List", Callback = function()
+    local Names = {}
+    for _, p in pairs(Players:GetPlayers()) do table.insert(Names, p.Name) end
+    if #Names > 0 then PlayerDropdown:Refresh(Names) end
+end})
+
+local ServerDisplay = ServerTab:CreateParagraph({Title = "Player Details", Content = "Select a player to begin."})
+
+ServerTab:CreateButton({ Name = "Get Detailed Info", Callback = function()
+    if not CurrentPlayer then return end
+    local Followers, Friends = GetStats(CurrentPlayer.UserId)
+    local _, GameName = GetPresenceAndGame(CurrentPlayer.UserId)
+    local Bio, JoinDate, _ = GetUserDetails(CurrentPlayer.UserId)
+    local JobId = game.JobId -- FIX: Using game.JobId instead of Player.JobId
+    
+    local InfoString = FormatData(CurrentPlayer.Name, CurrentPlayer.DisplayName, CurrentPlayer.UserId, JoinDate, Followers, Friends, GameName, Bio, JobId)
+    ServerDisplay:Set({Title = "Details for " .. CurrentPlayer.Name, Content = InfoString})
+end})
+
+ServerTab:CreateButton({ Name = "Copy JobID", Callback = function()
+    setclipboard(game.JobId)
+    Rayfield:Notify({Title = "Copied", Content = "Current Server JobID copied!", Duration = 3})
+end})
+
+-- --- GLOBAL SEARCH TAB ---
+local SearchName = ""
+GlobalTab:CreateInput({ Name = "Enter Username", PlaceholderText = "Type username...", Callback = function(Text) SearchName = Text end })
+local GlobalDisplay = GlobalTab:CreateParagraph({Title = "Global Search", Content = "Search for a user to see data."})
+
+GlobalTab:CreateButton({ Name = "Search", Callback = function()
+    if SearchName == "" then return end
+    local Res = request({ Url = "https://users.roblox.com/v1/usernames/users", Method = "POST", Body = HttpService:JSONEncode({usernames = {SearchName}}) })
+    local Data = HttpService:JSONDecode(Res.Body)
+    if not Data.data or #Data.data == 0 then
+        Rayfield:Notify({Title = "Error", Content = "User not found.", Duration = 3})
+        return
+    end
+    
+    local UId = Data.data[1].id
+    local Name = Data.data[1].name
+    local Followers, Friends = GetStats(UId)
+    local _, GameName = GetPresenceAndGame(UId)
+    local Bio, JoinDate, DisplayName = GetUserDetails(UId)
+    
+    GlobalData = FormatData(Name, DisplayName, UId, JoinDate, Followers, Friends, GameName, Bio, "N/A (Private)")
+    GlobalDisplay:Set({Title = "Results for " .. Name, Content = GlobalData})
+end})
+
+GlobalTab:CreateButton({ Name = "Copy JobID", Callback = function()
+    Rayfield:Notify({Title = "Error", Content = "Cannot copy JobID of global users (Private Info).", Duration = 3})
+end})
+
+-- Initialize
+task.spawn(function()
+    local Names = {}
+    for _, p in pairs(Players:GetPlayers()) do table.insert(Names, p.Name) end
+    if #Names > 0 then PlayerDropdown:Refresh(Names) end
+end)
+
