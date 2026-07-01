@@ -1,0 +1,259 @@
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local StarterGui = game:GetService("StarterGui")
+local TeleportService = game:GetService("TeleportService")
+local CoreGui = game:GetService("CoreGui")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local universeId = game.GameId
+
+-- UI Setup
+local ScreenGui = Instance.new("ScreenGui", CoreGui)
+ScreenGui.Name = "PlaceScanner"
+ScreenGui.ResetOnSpawn = false
+
+local Frame = Instance.new("Frame", ScreenGui)
+Frame.Size = UDim2.new(0, 350, 0, 500)
+Frame.Position = UDim2.new(0.5, -175, 0.5, -250)
+Frame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+Frame.BorderSizePixel = 0
+Frame.ClipsDescendants = true
+
+local Corner = Instance.new("UICorner", Frame)
+Corner.CornerRadius = UDim.new(0, 12)
+
+-- Title Bar
+local TitleBar = Instance.new("Frame", Frame)
+TitleBar.Size = UDim2.new(1, 0, 0, 45)
+TitleBar.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
+TitleBar.BorderSizePixel = 0
+
+local TitleCorner = Instance.new("UICorner", TitleBar)
+TitleCorner.CornerRadius = UDim.new(0, 12)
+
+local Title = Instance.new("TextLabel", TitleBar)
+Title.Size = UDim2.new(1, -20, 1, 0)
+Title.Position = UDim2.new(0, 10, 0, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "ЁЯМР Place Scanner"
+Title.TextColor3 = Color3.fromRGB(100, 200, 255)
+Title.TextSize = 18
+Title.Font = Enum.Font.GothamBold
+Title.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Draggable Logic
+local dragging = false
+local dragStart
+local startPos
+
+local function updateDrag(input)
+	local delta = input.Position - dragStart
+
+	Frame.Position = UDim2.new(
+		startPos.X.Scale,
+		startPos.X.Offset + delta.X,
+		startPos.Y.Scale,
+		startPos.Y.Offset + delta.Y
+	)
+end
+
+TitleBar.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+	or input.UserInputType == Enum.UserInputType.Touch then
+
+		dragging = true
+		dragStart = input.Position
+		startPos = Frame.Position
+
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				dragging = false
+			end
+		end)
+	end
+end)
+
+TitleBar.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseMovement
+	or input.UserInputType == Enum.UserInputType.Touch then
+		dragInput = input
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if input == dragInput and dragging then
+		updateDrag(input)
+	end
+end)
+
+-- Manual Teleport Section
+local InputLabel = Instance.new("TextLabel", Frame)
+InputLabel.Size = UDim2.new(0.9, 0, 0, 20)
+InputLabel.Position = UDim2.new(0.05, 0, 0, 60)
+InputLabel.BackgroundTransparency = 1
+InputLabel.Text = "Manual Teleport"
+InputLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+InputLabel.TextSize = 14
+InputLabel.Font = Enum.Font.GothamSemibold
+InputLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local Input = Instance.new("TextBox", Frame)
+Input.Size = UDim2.new(0.9, 0, 0, 40)
+Input.Position = UDim2.new(0.05, 0, 0, 85)
+Input.PlaceholderText = "Enter Place ID..."
+Input.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
+Input.BorderSizePixel = 0
+Input.TextColor3 = Color3.new(1, 1, 1)
+Input.TextSize = 14
+Input.Font = Enum.Font.Gotham
+Input.ClearTextOnFocus = false
+
+local InputCorner = Instance.new("UICorner", Input)
+InputCorner.CornerRadius = UDim.new(0, 8)
+
+local ManualBtn = Instance.new("TextButton", Frame)
+ManualBtn.Size = UDim2.new(0.9, 0, 0, 40)
+ManualBtn.Position = UDim2.new(0.05, 0, 0, 135)
+ManualBtn.Text = "Teleport"
+ManualBtn.BackgroundColor3 = Color3.fromRGB(60, 140, 255)
+ManualBtn.BorderSizePixel = 0
+ManualBtn.TextColor3 = Color3.new(1, 1, 1)
+ManualBtn.TextSize = 15
+ManualBtn.Font = Enum.Font.GothamBold
+
+local BtnCorner = Instance.new("UICorner", ManualBtn)
+BtnCorner.CornerRadius = UDim.new(0, 8)
+
+ManualBtn.MouseEnter:Connect(function() ManualBtn.BackgroundColor3 = Color3.fromRGB(80, 160, 255) end)
+ManualBtn.MouseLeave:Connect(function() ManualBtn.BackgroundColor3 = Color3.fromRGB(60, 140, 255) end)
+
+local function notify(txt)
+    pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = "Place Scanner",
+            Text = txt,
+            Duration = 3
+        })
+    end)
+end
+
+ManualBtn.MouseButton1Click:Connect(function()
+    local id = tonumber(Input.Text)
+    if id then 
+        TeleportService:Teleport(id) 
+    else
+        notify("Invalid Place ID")
+    end
+end)
+
+-- Places List Section
+local ListLabel = Instance.new("TextLabel", Frame)
+ListLabel.Size = UDim2.new(0.9, 0, 0, 20)
+ListLabel.Position = UDim2.new(0.05, 0, 0, 190)
+ListLabel.BackgroundTransparency = 1
+ListLabel.Text = "Available Places"
+ListLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+ListLabel.TextSize = 14
+ListLabel.Font = Enum.Font.GothamSemibold
+ListLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local Scroll = Instance.new("ScrollingFrame", Frame)
+Scroll.Size = UDim2.new(0.9, 0, 0, 270)
+Scroll.Position = UDim2.new(0.05, 0, 0, 215)
+Scroll.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
+Scroll.BorderSizePixel = 0
+Scroll.ScrollBarThickness = 6
+Scroll.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 120)
+
+local ScrollCorner = Instance.new("UICorner", Scroll)
+ScrollCorner.CornerRadius = UDim.new(0, 8)
+
+local ListLayout = Instance.new("UIListLayout", Scroll)
+ListLayout.Padding = UDim.new(0, 8)
+ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+local Padding = Instance.new("UIPadding", Scroll)
+Padding.PaddingTop = UDim.new(0, 8)
+Padding.PaddingBottom = UDim.new(0, 8)
+Padding.PaddingLeft = UDim.new(0, 8)
+Padding.PaddingRight = UDim.new(0, 8)
+
+-- Scanner Logic
+local success, response = pcall(function()
+    return game:HttpGet(("https://develop.roblox.com/v1/universes/%s/places?limit=100"):format(universeId))
+end)
+
+if not success then
+    notify("Scanner Blocked - Use Manual Input")
+    local WarnLabel = Instance.new("TextLabel", Scroll)
+    WarnLabel.Text = "тЪая╕П Scanner blocked by executor.\nUse manual input above."
+    WarnLabel.Size = UDim2.new(1, -16, 0, 60)
+    WarnLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+    WarnLabel.TextSize = 13
+    WarnLabel.Font = Enum.Font.Gotham
+    WarnLabel.BackgroundTransparency = 1
+    WarnLabel.TextWrapped = true
+else
+    local data = HttpService:JSONDecode(response)
+    for _, place in ipairs(data.data or {}) do
+        local Container = Instance.new("Frame", Scroll)
+        Container.Size = UDim2.new(1, -16, 0, 50)
+        Container.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+        Container.BorderSizePixel = 0
+
+        local ContainerCorner = Instance.new("UICorner", Container)
+        ContainerCorner.CornerRadius = UDim.new(0, 6)
+
+        local Name = Instance.new("TextLabel", Container)
+        Name.Size = UDim2.new(0.55, 0, 1, 0)
+        Name.Position = UDim2.new(0, 10, 0, 0)
+        Name.Text = place.name
+        Name.TextColor3 = Color3.new(1, 1, 1)
+        Name.TextSize = 13
+        Name.Font = Enum.Font.Gotham
+        Name.BackgroundTransparency = 1
+        Name.TextXAlignment = Enum.TextXAlignment.Left
+        Name.TextTruncate = Enum.TextTruncate.AtEnd
+
+        local CopyBtn = Instance.new("TextButton", Container)
+        CopyBtn.Size = UDim2.new(0.18, 0, 0.65, 0)
+        CopyBtn.Position = UDim2.new(0.58, 0, 0.175, 0)
+        CopyBtn.Text = "Copy"
+        CopyBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 85)
+        CopyBtn.BorderSizePixel = 0
+        CopyBtn.TextColor3 = Color3.new(1, 1, 1)
+        CopyBtn.TextSize = 12
+        CopyBtn.Font = Enum.Font.GothamSemibold
+
+        local CopyCorner = Instance.new("UICorner", CopyBtn)
+        CopyCorner.CornerRadius = UDim.new(0, 5)
+
+        CopyBtn.MouseButton1Click:Connect(function() 
+            if setclipboard then 
+                setclipboard(tostring(place.id)) 
+                notify("Copied: " .. place.id)
+            end 
+        end)
+
+        local TpBtn = Instance.new("TextButton", Container)
+        TpBtn.Size = UDim2.new(0.18, 0, 0.65, 0)
+        TpBtn.Position = UDim2.new(0.78, 0, 0.175, 0)
+        TpBtn.Text = "TP"
+        TpBtn.BackgroundColor3 = Color3.fromRGB(60, 140, 255)
+        TpBtn.BorderSizePixel = 0
+        TpBtn.TextColor3 = Color3.new(1, 1, 1)
+        TpBtn.TextSize = 12
+        TpBtn.Font = Enum.Font.GothamBold
+
+        local TpCorner = Instance.new("UICorner", TpBtn)
+        TpCorner.CornerRadius = UDim.new(0, 5)
+
+        TpBtn.MouseButton1Click:Connect(function() 
+            TeleportService:Teleport(place.id) 
+        end)
+    end
+    notify("Found " .. #(data.data or {}) .. " places")
+    Scroll.CanvasSize = UDim2.new(0, 0, 0, ListLayout.AbsoluteContentSize.Y + 16)
+end
