@@ -7,7 +7,7 @@ local FireLoopThread = nil
 
 local Window = Rayfield:CreateWindow({
    Name = "Word Finder // Super Edition",
-   LoadingTitle = "Crazay...",
+   LoadingTitle = "banned from scriptblox sorry yall...",
    LoadingSubtitle = "WOA!",
    ConfigurationSaving = { Enabled = false },
    KeySystem = false
