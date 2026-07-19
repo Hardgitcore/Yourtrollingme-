@@ -394,7 +394,7 @@ end
 
 local Window = Rayfield:CreateWindow({
 	Name = "Drum judge",
-	LoadingTitle = "https://robloxscripts.com/user/Yumyam more of my scripts",
+	LoadingTitle = "banned from scriptblox sorry yall",
 	LoadingSubtitle = "made by yamyum",
 	ConfigurationSaving = { Enabled = false },
 	KeySystem = false,
