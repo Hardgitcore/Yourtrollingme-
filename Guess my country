@@ -3,7 +3,7 @@ local HttpService = game:GetService("HttpService")
 
 local Window = Rayfield:CreateWindow({
     Name = "AI World Guesser 🌐",
-    LoadingTitle = "https://robloxscripts.com/user/Yumyam more here!",
+    LoadingTitle = "banned from scriptblox sorry yall",
     ConfigurationSaving = {Enabled = true, FolderName = "GroqGuesser"}
 })
 
