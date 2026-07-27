@@ -7,7 +7,10 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 -- Global Variables
 local player = Players.LocalPlayer
 local loopActive = false
+local skyFarmActive = false
 local orbitOnlyActive = false
+local autoResetActive = false
+local auto1HPSafetyActive = false
 local autoClaimDailyActive = false
 
 -- Stat Tracker Variables
@@ -22,20 +25,27 @@ local lastVolts = nil
 local lastXP = nil
 local lastHealth = nil
 
+-- Purchase Variables
+local disasterAmount = 1
+
 local Window = Rayfield:CreateWindow({
-    Name = "Parkour Pandemic",
+    Name = "Parkour Pandemic (YamYum Edit)",
     LoadingTitle = "Requested by Frostyry",
     LoadingSubtitle = "Scripts made by yamyum!",
     ConfigurationSaving = { Enabled = false }
 })
 
-local Tab = Window:CreateTab("Main Features", "Main")
+-- UI Tabs
+local InfoTab = Window:CreateTab("Information", 0) -- Inserted as the 1st tab
+local Tab = Window:CreateTab("Main Features", 0)
+local PurchaseTab = Window:CreateTab("Purchase", 0)
+local TrollingTab = Window:CreateTab("Trolling", 0)
+local AchievementTab = Window:CreateTab("Achievements", 0)
 
 -- Configuration Variables
-local SKY_HEIGHT = 500 
 local CIRCLE_SPEED = 0.04 
 local CIRCLE_RADIUS = 300 
-local TORNADO_SAFE_RADIUS = 120 
+local HAZARD_SAFE_RADIUS = 90 
 local HEAL_THRESHOLD = 50 
 local BANNED_KEYWORDS = {"void", "warning", "baseplatewater", "tide floor", "tornado"}
 
@@ -52,7 +62,7 @@ local function parseNumber(val)
     return nil
 end
 
--- // Helper: Format numbers with commas (e.g. 1000 -> 1,000)
+-- // Helper: Format numbers with commas
 local function formatNumber(n)
     local formatted = tostring(math.floor(n))
     local k
@@ -98,7 +108,228 @@ local function GetXPValue()
     return nil
 end
 
--- // UI SECTION: SESSION STATS
+-- =================================================================
+-- // INFORMATION TAB ELEMENTS
+-- =================================================================
+InfoTab:CreateSection("Welcome to Parkour Pandemic YamYum Edit!")
+
+InfoTab:CreateParagraph({
+    Title = "About This Script",
+    Content = "This is a customized auto-farming and utillity script Parkour Pandemic, this script was created before the request i could not upload to script to Sb due to my acc being new Enjoy!\nRequested by: Frostyry\nScripted/Edited by: yamyum"
+})
+
+InfoTab:CreateSection("Script Overview")
+
+InfoTab:CreateLabel("-> Main Features: Auto-farming, Auto get wins, and stat tracking.")
+InfoTab:CreateLabel("-> Purchase: Buy gears and disasters automatically.")
+InfoTab:CreateLabel("-> Trolling: Super ring parts and more to come soon.")
+InfoTab:CreateLabel("-> Achievements: Automation for game-specific achievements (more to come soon)")
+
+InfoTab:CreateSection("Important Notes (PLEASE READ)")
+InfoTab:CreateParagraph({
+    Title = "Safety & Evasion",
+    Content = "I tried my best to get this working so heres a few notes \n1. Why does it stop purifying beacons when theres a tornado? This is so you dont get hit during the tornado\n2. The script is not suitable for blackhole and tornado\n3. If your asking which autofarm i reccommend its Sky autofarm\n4. Yes both autofarms have an auto use heal system using vitallity gear.\n5. 100% suggest more stuff in the comments Thanks!"
+})
+
+
+-- =================================================================
+-- // ACHIEVEMENTS TAB ELEMENTS
+-- =================================================================
+AchievementTab:CreateSection("All Death Achievement Farm")
+
+AchievementTab:CreateToggle({
+    Name = "Auto Reset on Round",
+    CurrentValue = false,
+    Callback = function(Value)
+        autoResetActive = Value
+
+        if autoResetActive then
+            task.spawn(function()
+                while autoResetActive do
+                    local map = workspace:FindFirstChild("ActiveMap")
+                    if map then
+                        task.wait(10)
+                        
+                        if autoResetActive and workspace:FindFirstChild("ActiveMap") == map then
+                            local char = player.Character
+                            if char then
+                                local humanoid = char:FindFirstChild("Humanoid")
+                                if humanoid and humanoid.Health > 0 then
+                                    humanoid.Health = 0
+                                end
+                            end
+                            
+                            repeat 
+                                task.wait(1) 
+                            until not autoResetActive or workspace:FindFirstChild("ActiveMap") ~= map
+                        end
+                    end
+                    task.wait(1)
+                end
+            end)
+        end
+    end
+})
+
+AchievementTab:CreateSection("Undying Achievement, not perfect")
+
+-- Tracker to know if we are currently dipping in the water to reach 1 HP
+local doingWaterDip = false
+
+AchievementTab:CreateToggle({
+    Name = "Undying Farm (Manual <10 -> Sky -> 16 Water -> 1 HP)",
+    CurrentValue = false,
+    Callback = function(Value)
+        auto1HPSafetyActive = Value
+        
+        -- Reset the dip tracker if the toggle is turned off
+        if not Value then 
+            doingWaterDip = false 
+        end
+
+        if auto1HPSafetyActive then
+            task.spawn(function()
+                while auto1HPSafetyActive do
+                    local char = player.Character
+                    if char then
+                        local humanoid = char:FindFirstChild("Humanoid")
+                        local hrp = char:FindFirstChild("HumanoidRootPart")
+                        
+                        if humanoid and hrp and humanoid.Health > 0 then
+                            
+                            -- Safety reset: If player heals fully manually, reset the sequence
+                            if humanoid.Health > 25 then
+                                doingWaterDip = false
+                            end
+
+                            if not doingWaterDip then
+                                if humanoid.Health <= 10 then
+                                    -- Step 1: User took damage manually. TP to sky to regen.
+                                    pcall(function()
+                                        hrp.Anchored = true
+                                        hrp.CFrame = CFrame.new(hrp.Position.X, 2000, hrp.Position.Z)
+                                    end)
+                                -- Step 2: EXACTLY 16 HP. 16 - 15 water damage = exactly 1 HP!
+                                elseif math.floor(humanoid.Health) == 16 then
+                                    doingWaterDip = true
+                                    pcall(function()
+                                        local waterPart = workspace:FindFirstChild("BaseplateWater")
+                                        if waterPart then
+                                            hrp.Anchored = false
+                                            hrp.CFrame = waterPart.CFrame + Vector3.new(0, 3, 0)
+                                        end
+                                    end)
+                                end
+                            else
+                                -- Step 3: We are in the water dipping process. Wait until that 15 dmg hits.
+                                if humanoid.Health <= 1.5 then
+                                    doingWaterDip = false
+                                    -- Fast rescue to sky
+                                    pcall(function()
+                                        hrp.Anchored = true
+                                        hrp.CFrame = CFrame.new(hrp.Position.X, 2000, hrp.Position.Z)
+                                    end)
+                                end
+                            end
+                        end
+                    end
+                    -- Extremely fast check (0.05) to instantly catch that 15 damage tick
+                    task.wait(0.05) 
+                end
+            end)
+        end
+    end
+})
+
+
+-- =================================================================
+-- // PURCHASE TAB ELEMENTS
+-- =================================================================
+PurchaseTab:CreateSection("Gear Auto-Buy")
+
+PurchaseTab:CreateToggle({
+    Name = "Buy BoostGear",
+    CurrentValue = false,
+    Callback = function(Value)
+        if Value then
+            local remote = ReplicatedStorage:FindFirstChild("BuyGearEvent")
+            if remote then
+                remote:FireServer("BoostGear")
+            end
+        end
+    end
+})
+
+PurchaseTab:CreateToggle({
+    Name = "Buy PowerGear",
+    CurrentValue = false,
+    Callback = function(Value)
+        if Value then
+            local remote = ReplicatedStorage:FindFirstChild("BuyGearEvent")
+            if remote then
+                remote:FireServer("PowerGear")
+            end
+        end
+    end
+})
+
+PurchaseTab:CreateToggle({
+    Name = "Buy SpeedGear",
+    CurrentValue = false,
+    Callback = function(Value)
+        if Value then
+            local remote = ReplicatedStorage:FindFirstChild("BuyGearEvent")
+            if remote then
+                remote:FireServer("SpeedGear")
+            end
+        end
+    end
+})
+
+PurchaseTab:CreateSection("Disaster Purchases")
+
+PurchaseTab:CreateSlider({
+    Name = "Extra Disaster Amount",
+    Range = {1, 10},
+    Increment = 1,
+    Suffix = "Disasters",
+    CurrentValue = 1,
+    Flag = "DisasterAmountSlider",
+    Callback = function(Value)
+        disasterAmount = Value
+    end,
+})
+
+PurchaseTab:CreateButton({
+    Name = "Buy Extra Disasters",
+    Callback = function()
+        task.spawn(function()
+            local remote = ReplicatedStorage:FindFirstChild("BuyExtraDisaster")
+            if remote then
+                for i = 1, disasterAmount do
+                    remote:FireServer()
+                    task.wait(0.1)
+                end
+            end
+        end)
+    end,
+})
+
+-- =================================================================
+-- // TROLLING TAB ELEMENTS
+-- =================================================================
+TrollingTab:CreateSection("External Scripts")
+
+TrollingTab:CreateButton({
+    Name = "Super Ring Parts",
+    Callback = function()
+        loadstring(game:HttpGet("https://rawscripts.net/raw/Natural-Disaster-Survival-super-ring-parts-open-source-NO-TEXT-CHAT-MESSAGE-212258"))()
+    end,
+})
+
+-- =================================================================
+-- // MAIN FEATURES TAB ELEMENTS
+-- =================================================================
 Tab:CreateSection("Session Stats")
 
 local VoltsLabel = Tab:CreateLabel("Volts Earned: 0")
@@ -173,7 +404,6 @@ player.CharacterAdded:Connect(SetupCharacterStatListeners)
 task.spawn(function()
     while true do
         pcall(function()
-            -- 1. Track Volts
             local currentVolts = GetVoltsValue()
             if currentVolts then
                 if lastVolts == nil then
@@ -188,7 +418,6 @@ task.spawn(function()
                 end
             end
 
-            -- 2. Track XP
             local currentXP = GetXPValue()
             if currentXP then
                 if lastXP == nil then
@@ -207,7 +436,7 @@ task.spawn(function()
     end
 end)
 
--- // Helper: Check if dangerous
+-- // Helper: Check if a remnant is directly parented under a hazard
 local function IsDangerous(instance)
     local current = instance
     while current and current ~= game do
@@ -220,19 +449,30 @@ local function IsDangerous(instance)
     return false
 end
 
--- // Helper: Check if a position is near a tornado
-local function IsPosNearTornado(pos)
-    if not pos then return true end
-    for _, v in pairs(workspace:GetDescendants()) do
-        local name = v.Name:lower()
-        if name:find("tornado") and (v:IsA("Model") or v:IsA("BasePart")) then
-            local tPos = (v:IsA("Model") and v:GetPivot().Position) or v.Position
-            if tPos and (pos - tPos).Magnitude < TORNADO_SAFE_RADIUS then
-                return true
+-- // Helper: Check if target position is near dynamic hazards or active warnings
+local function IsPosNearHazard(pos)
+    if not pos then return false end
+    local isUnsafe = false
+    
+    pcall(function()
+        for _, v in pairs(workspace:GetDescendants()) do
+            if v:IsA("BasePart") or v:IsA("Model") then
+                local name = v.Name:lower()
+                for _, keyword in pairs(BANNED_KEYWORDS) do
+                    if name:find(keyword) then
+                        local hPos = (v:IsA("Model") and v:GetPivot().Position) or v.Position
+                        if hPos and (pos - hPos).Magnitude < HAZARD_SAFE_RADIUS then
+                            isUnsafe = true
+                            break
+                        end
+                    end
+                end
             end
+            if isUnsafe then break end
         end
-    end
-    return false
+    end)
+    
+    return isUnsafe
 end
 
 -- // Helper: Calculate the highest point of an object
@@ -256,7 +496,7 @@ local function GetHighestPointCFrame(target)
     return nil
 end
 
--- // Helper: Safely get the Stud Border center position (with ActiveMap fallback)
+-- // Helper: Get Stud Border center position directly
 local function GetOrbitCenterPoint()
     local centerPos = nil
     pcall(function()
@@ -282,11 +522,10 @@ end
 task.spawn(function()
     local lastRewardTime = 0
     while true do
-        if loopActive or orbitOnlyActive then
+        if loopActive or skyFarmActive or orbitOnlyActive then
             pcall(function()
                 local char = player.Character
                 
-                -- 1. Smart Heal Check
                 if char then
                     local humanoid = char:FindFirstChild("Humanoid")
                     if humanoid and humanoid.Health < HEAL_THRESHOLD then
@@ -295,7 +534,6 @@ task.spawn(function()
                     end
                 end
                 
-                -- 2. Standard Reward Claimer
                 if tick() - lastRewardTime >= 10 then
                     lastRewardTime = tick()
                     local ClaimRemote = ReplicatedStorage:FindFirstChild("ClaimReward")
@@ -314,7 +552,10 @@ task.spawn(function()
             pcall(function()
                 local dailyRemote = ReplicatedStorage:WaitForChild("ClaimDailyReward", 5)
                 if dailyRemote then
-                    dailyRemote:FireServer()
+                    for day = 1, 7 do
+                        dailyRemote:FireServer(day)
+                        task.wait(0.1)
+                    end
                 end
             end)
             task.wait(60)
@@ -324,17 +565,16 @@ task.spawn(function()
     end
 end)
 
--- // TOGGLE 1: Full Farming Loop
+
+-- // TOGGLE 1: Full Farming Loop (Dynamic Hazard & Warning Evasion)
 Tab:CreateToggle({
-    Name = "AutoFarm",
+    Name = "AutoFarm (Normal)",
     CurrentValue = false,
     Callback = function(Value)
         loopActive = Value
 
         task.spawn(function()
             local angle = 0
-            local lastScanTime = 0
-            local foundTargets = {}
 
             while loopActive do
                 local char = player.Character
@@ -344,75 +584,80 @@ Tab:CreateToggle({
                 end
                 
                 local hrp = char.HumanoidRootPart
+                local tempTargets = {}
                 
-                -- Smart Scanner
-                if tick() - lastScanTime >= 1 then
-                    lastScanTime = tick()
-                    foundTargets = {} 
-                    
-                    pcall(function()
-                        local tempTargets = {}
-                        
-                        for _, v in pairs(workspace:GetDescendants()) do
-                            if v.Name:find("Remanat") and not IsDangerous(v) then
-                                table.insert(tempTargets, v)
-                            end
-                        end
-                        
-                        for _, target in pairs(tempTargets) do
-                            local pos = (target:IsA("Model") and target:GetPivot().Position) or (target:IsA("BasePart") and target.Position)
-                            if pos and not IsPosNearTornado(pos) then
-                                table.insert(foundTargets, target)
-                            end
-                        end
-                    end)
-                end
-                
-                -- Process Targets
-                if #foundTargets > 0 then
-                    pcall(function() hrp.Anchored = false end)
-                    
-                    for _, target in ipairs(foundTargets) do
-                        if not loopActive then break end
-                        
-                        local targetValidAndSafe = false
-                        pcall(function()
-                            if target and target.Parent then
-                                local pos = (target:IsA("Model") and target:GetPivot().Position) or (target:IsA("BasePart") and target.Position)
-                                
-                                -- Real-time Tornado check right before teleporting
-                                if pos and not IsPosNearTornado(pos) then
-                                    local targetCFrame = GetHighestPointCFrame(target)
-                                    if targetCFrame then
-                                        hrp.CFrame = targetCFrame
-                                        targetValidAndSafe = true
-                                    end
-                                end
-                            end
-                        end)
-                        
-                        if targetValidAndSafe then
-                            totalRemsTouched = totalRemsTouched + 1
-                            RemsTouchedLabel:Set("Remnants Touched: " .. formatNumber(totalRemsTouched))
-                            task.wait(0.25)
+                pcall(function()
+                    for _, v in pairs(workspace:GetDescendants()) do
+                        if v.Name:find("Remanat") and not IsDangerous(v) then
+                            table.insert(tempTargets, v)
                         end
                     end
-                    
-                    foundTargets = {}
-                    lastScanTime = 0 
+                end)
+                
+                if #tempTargets > 0 then
+                    for _, target in ipairs(tempTargets) do
+                        if not loopActive then break end
+                        
+                        if target and target.Parent then
+                            local targetPos = (target:IsA("Model") and target:GetPivot().Position) or (target:IsA("BasePart") and target.Position)
+                            
+                            if targetPos then
+                                if IsPosNearHazard(targetPos) then
+                                    local waitStart = tick()
+                                    
+                                    while loopActive and target and target.Parent and (tick() - waitStart < 8) do
+                                        local currentPos = (target:IsA("Model") and target:GetPivot().Position) or (target:IsA("BasePart") and target.Position)
+                                        
+                                        if not currentPos or not IsPosNearHazard(currentPos) then
+                                            break
+                                        end
+                                        
+                                        pcall(function()
+                                            hrp.Anchored = true
+                                            local centerPos = GetOrbitCenterPoint()
+                                            angle = angle + CIRCLE_SPEED
+                                            hrp.CFrame = CFrame.new(
+                                                centerPos.X + (math.cos(angle) * CIRCLE_RADIUS), 
+                                                centerPos.Y, 
+                                                centerPos.Z + (math.sin(angle) * CIRCLE_RADIUS)
+                                            )
+                                        end)
+                                        RunService.Heartbeat:Wait()
+                                    end
+                                end
+                                
+                                local finalPosCheck = (target:IsA("Model") and target:GetPivot().Position) or (target:IsA("BasePart") and target.Position)
+                                
+                                if loopActive and target and target.Parent and finalPosCheck and not IsPosNearHazard(finalPosCheck) then
+                                    pcall(function()
+                                        hrp.Anchored = false
+                                        local targetCFrame = GetHighestPointCFrame(target)
+                                        if targetCFrame then
+                                            hrp.CFrame = targetCFrame
+                                            totalRemsTouched = totalRemsTouched + 1
+                                            RemsTouchedLabel:Set("Remnants Touched: " .. formatNumber(totalRemsTouched))
+                                            task.wait(0.25)
+                                        end
+                                    end)
+                                end
+                            end
+                        end
+                    end
                 else
-                    -- Idle Mode: Orbit Stud Border until area is clear
                     pcall(function()
                         hrp.Anchored = true
                         local centerPos = GetOrbitCenterPoint()
                         angle = angle + CIRCLE_SPEED
-                        hrp.CFrame = CFrame.new(centerPos.X + (math.cos(angle) * CIRCLE_RADIUS), SKY_HEIGHT, centerPos.Z + (math.sin(angle) * CIRCLE_RADIUS))
+                        hrp.CFrame = CFrame.new(
+                            centerPos.X + (math.cos(angle) * CIRCLE_RADIUS), 
+                            centerPos.Y, 
+                            centerPos.Z + (math.sin(angle) * CIRCLE_RADIUS)
+                        )
                     end)
                     RunService.Heartbeat:Wait()
                 end
             end
             
-            -- Ground-Return Cleanup
             pcall(function()
                 local char = player.Character
                 if char and char:FindFirstChild("HumanoidRootPart") then
@@ -426,7 +671,112 @@ Tab:CreateToggle({
     end
 })
 
--- // TOGGLE 2: Pure Stud Border Orbit
+-- // TOGGLE 2: Sky AutoFarm (High Altitude Evasion)
+Tab:CreateToggle({
+    Name = "Sky AutoFarm",
+    CurrentValue = false,
+    Callback = function(Value)
+        skyFarmActive = Value
+
+        task.spawn(function()
+            local angle = 0
+
+            while skyFarmActive do
+                local char = player.Character
+                if not char or not char:FindFirstChild("HumanoidRootPart") then
+                    task.wait(1)
+                    continue
+                end
+                
+                local hrp = char.HumanoidRootPart
+                local tempTargets = {}
+                
+                pcall(function()
+                    for _, v in pairs(workspace:GetDescendants()) do
+                        if v.Name:find("Remanat") and not IsDangerous(v) then
+                            table.insert(tempTargets, v)
+                        end
+                    end
+                end)
+                
+                if #tempTargets > 0 then
+                    for _, target in ipairs(tempTargets) do
+                        if not skyFarmActive then break end
+                        
+                        if target and target.Parent then
+                            local targetPos = (target:IsA("Model") and target:GetPivot().Position) or (target:IsA("BasePart") and target.Position)
+                            
+                            if targetPos then
+                                if IsPosNearHazard(targetPos) then
+                                    local waitStart = tick()
+                                    
+                                    while skyFarmActive and target and target.Parent and (tick() - waitStart < 8) do
+                                        local currentPos = (target:IsA("Model") and target:GetPivot().Position) or (target:IsA("BasePart") and target.Position)
+                                        
+                                        if not currentPos or not IsPosNearHazard(currentPos) then
+                                            break
+                                        end
+                                        
+                                        pcall(function()
+                                            hrp.Anchored = true
+                                            local centerPos = GetOrbitCenterPoint()
+                                            angle = angle + CIRCLE_SPEED
+                                            hrp.CFrame = CFrame.new(
+                                                centerPos.X + (math.cos(angle) * CIRCLE_RADIUS), 
+                                                2000, -- Rests and evades highly up in the sky
+                                                centerPos.Z + (math.sin(angle) * CIRCLE_RADIUS)
+                                            )
+                                        end)
+                                        RunService.Heartbeat:Wait()
+                                    end
+                                end
+                                
+                                local finalPosCheck = (target:IsA("Model") and target:GetPivot().Position) or (target:IsA("BasePart") and target.Position)
+                                
+                                if skyFarmActive and target and target.Parent and finalPosCheck and not IsPosNearHazard(finalPosCheck) then
+                                    pcall(function()
+                                        hrp.Anchored = false
+                                        local targetCFrame = GetHighestPointCFrame(target)
+                                        if targetCFrame then
+                                            hrp.CFrame = targetCFrame
+                                            totalRemsTouched = totalRemsTouched + 1
+                                            RemsTouchedLabel:Set("Remnants Touched: " .. formatNumber(totalRemsTouched))
+                                            task.wait(0.25)
+                                        end
+                                    end)
+                                end
+                            end
+                        end
+                    end
+                else
+                    pcall(function()
+                        hrp.Anchored = true
+                        local centerPos = GetOrbitCenterPoint()
+                        angle = angle + CIRCLE_SPEED
+                        hrp.CFrame = CFrame.new(
+                            centerPos.X + (math.cos(angle) * CIRCLE_RADIUS), 
+                            2000, -- Idles safely in the sky if no remnants found
+                            centerPos.Z + (math.sin(angle) * CIRCLE_RADIUS)
+                        )
+                    end)
+                    RunService.Heartbeat:Wait()
+                end
+            end
+            
+            pcall(function()
+                local char = player.Character
+                if char and char:FindFirstChild("HumanoidRootPart") then
+                    char.HumanoidRootPart.Anchored = false
+                    local map = workspace:FindFirstChild("ActiveMap")
+                    local groundPos = (map and map:GetPivot().Position) or Vector3.new(0, 10, 0)
+                    char.HumanoidRootPart.CFrame = CFrame.new(groundPos + Vector3.new(0, 5, 0))
+                end
+            end)
+        end)
+    end
+})
+
+-- // TOGGLE 3: Direct Orbit around Stud Border
 Tab:CreateToggle({
     Name = "Safe Orbit (no beacons/use if you wanna grind wins/get untouchable)",
     CurrentValue = false,
@@ -445,13 +795,16 @@ Tab:CreateToggle({
                         local centerPos = GetOrbitCenterPoint()
                         
                         angle = angle + CIRCLE_SPEED
-                        hrp.CFrame = CFrame.new(centerPos.X + (math.cos(angle) * CIRCLE_RADIUS), SKY_HEIGHT, centerPos.Z + (math.sin(angle) * CIRCLE_RADIUS))
+                        hrp.CFrame = CFrame.new(
+                            centerPos.X + (math.cos(angle) * CIRCLE_RADIUS), 
+                            centerPos.Y, 
+                            centerPos.Z + (math.sin(angle) * CIRCLE_RADIUS)
+                        )
                     end)
                 end
                 RunService.Heartbeat:Wait()
             end
 
-            -- Ground-Return Cleanup
             pcall(function()
                 local char = player.Character
                 if char and char:FindFirstChild("HumanoidRootPart") then
@@ -465,7 +818,7 @@ Tab:CreateToggle({
     end
 })
 
--- // TOGGLE 3: Auto Claim Daily Rewards
+-- // TOGGLE 4: Auto Claim Daily Rewards
 Tab:CreateToggle({
     Name = "Auto Claim Daily Rewards",
     CurrentValue = false,
@@ -474,14 +827,43 @@ Tab:CreateToggle({
     end
 })
 
--- // BUTTON: Stud Border Teleport
+Tab:CreateSection("Teleports")
+
+-- // BUTTON: Teleport to Stud Border
 Tab:CreateButton({
-    Name = "Teleport to Stud Border",
+    Name = "Tp to a safe place(be active during tornado or bh if u want no hit)",
     Callback = function()
         local char = player.Character
         if char and char:FindFirstChild("HumanoidRootPart") then
             pcall(function()
                 local target = workspace.wall["wall mod"]:GetChildren()[24]["Stud Border"]
+                
+                if target then
+                    local targetCFrame
+                    if target:IsA("Model") then
+                        targetCFrame = target:GetBoundingBox()
+                    elseif target:IsA("BasePart") then
+                        targetCFrame = target.CFrame
+                    end
+                    
+                    if targetCFrame then
+                        char.HumanoidRootPart.Anchored = false
+                        char.HumanoidRootPart.CFrame = targetCFrame + Vector3.new(0, 5, 0)
+                    end
+                end
+            end)
+        end
+    end,
+})
+
+-- // BUTTON: Teleport to TitleTemplate(Tester)
+Tab:CreateButton({
+    Name = "Tp to another safe place (Better imo)",
+    Callback = function()
+        local char = player.Character
+        if char and char:FindFirstChild("HumanoidRootPart") then
+            pcall(function()
+                local target = workspace:FindFirstChild("TitleTemplate(Tester)")
                 
                 if target then
                     local targetCFrame
